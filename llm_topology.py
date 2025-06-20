@@ -27,7 +27,7 @@ class LLMTopology:
         
         
         attention_mask = inputs['attention_mask'].unsqueeze(-1).float()
-        embeddings = (hidden_states * attention_mask).sum(dim=1) / attention_mask.sum(dim=1, keepdim=True)
+        embeddings = (hidden_states * attention_mask).sum(dim=1) / attention_mask.sum(dim=1)
     
     return embeddings
 
