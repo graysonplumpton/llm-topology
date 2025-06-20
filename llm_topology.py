@@ -59,6 +59,10 @@ class LLMTopology:
     h1_features = diagrams['dgms'][1]  # Loops
     # h2_features = diagrams['dgms'][2]  # Voids
 
+    alive_components = sum(1 for birth, death in h0_features 
+                      if birth <= persistence_threshold and 
+                      (death > persistence_threshold or np.isinf(death)))
+
     significant_loops = [(birth, death) for birth, death in h1_features 
                            if death - birth > persistence_threshold]
 
@@ -68,7 +72,8 @@ class LLMTopology:
     print(f"Std distance: {distance_matrix.std():.4f}")
 
     print(f"\n Topological Analysis:")
-    print(f"Connected components: {len(h0_features)}")
+    print(f"Connected components: {alive_components}")
+    print(f"Total component births: {len(h0_features)}")
     print(f"Total loops: {len(h1_features)}")
     print(f"Significant loops: {len(significant_loops)}")
 
