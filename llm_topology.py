@@ -96,6 +96,24 @@ class LLMTopology:
     print(f"Significant voids: {len(significant_voids)}")
 
     return diagrams
+
+  def sig_loops(self, text, layer=-1, persistence_threshold = 0.27):
+    embeddings = self.get_embeddings(text, layer)
+
+    distance_matrix = self.compute_distance_matrix(embeddings)
+
+    diagrams = ripser(distance_matrix, distance_matrix = True, thresh = persistence_threshold, maxdim = 1)
+
+    h1_features = diagrams['dgms'][1]
+
+    alive_components = sum(1 for birth, death in h0_features 
+                      if birth <= persistence_threshold and 
+                      (death > persistence_threshold or np.isinf(death)))
+
+    significant_loops = [(birth, death) for birth, death in h1_features 
+                           if death - birth > persistence_threshold]
+
+    return len(significant_loops)
     
 
   
