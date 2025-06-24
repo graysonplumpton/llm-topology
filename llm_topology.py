@@ -106,10 +106,6 @@ class LLMTopology:
 
     h1_features = diagrams['dgms'][1]
 
-    alive_components = sum(1 for birth, death in h0_features 
-                      if birth <= persistence_threshold and 
-                      (death > persistence_threshold or np.isinf(death)))
-
     significant_loops = [(birth, death) for birth, death in h1_features 
                            if death - birth > persistence_threshold]
 
