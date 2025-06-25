@@ -110,6 +110,20 @@ class LLMTopology:
                            if death - birth > persistence_threshold]
 
     return len(significant_loops)
+
+  def sig_voids(self, text, layer=-1, persistence_threshold = 0.27):
+    embeddings = self.get_embeddings(text, layer)
+
+    distance_matrix = self.compute_distance_matrix(embeddings)
+
+    diagrams = ripser(distance_matrix, distance_matrix = True, thresh = persistence_threshold, maxdim = 2)
+
+    h2_features = diagrams['dgms'][2]
+
+    significant_voids = [(birth, death) for birth, death in h2_features 
+                        if death - birth > persistence_threshold]
+
+    return len(significant_voids)
     
 
   
