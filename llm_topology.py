@@ -194,61 +194,135 @@ class LLMTopology:
             print(f"\nLoop {loop_idx + 1} (Persistence: {persistence:.4f}):")
             print(f"Birth: {birth:.4f}, Death: {death:.4f}")
             
-            # Get the cocycle (representative cycle) for this loop
+    def print_sig_loops(self, text, layer=-1, persistence_threshold=0.27, top_k=5):
+        """Print which tokens contribute to significant loops with complete loop structure"""
+        # Get token-level embeddings and tokens
+        embeddings, tokens = self.get_token_embeddings(text, layer)
+        distance_matrix = self.compute_distance_matrix(embeddings)
+        
+        # Compute persistence diagrams WITH cocycles
+        diagrams = ripser(distance_matrix, distance_matrix=True, 
+                         thresh=persistence_threshold, maxdim=1, do_cocycles=True)
+        
+        h1_features = diagrams['dgms'][1]  # Loops
+        h1_cocycles = diagrams['cocycles'][1] if 'cocycles' in diagrams else []
+        
+        significant_loops = [(i, birth, death) for i, (birth, death) in enumerate(h1_features) 
+                           if death - birth > persistence_threshold]
+        
+        if not significant_loops:
+            print("No significant loops found.")
+            return
+        
+        print(f"\nFound {len(significant_loops)} significant loops:")
+        print("=" * 60)
+        
+        # Sort by persistence (death - birth)
+        significant_loops.sort(key=lambda x: x[2] - x[1], reverse=True)
+        
+        for loop_idx, (orig_idx, birth, death) in enumerate(significant_loops[:top_k]):
+            persistence = death - birth
+            print(f"\nLoop {loop_idx + 1} (Persistence: {persistence:.4f}):")
+            print(f"Birth: {birth:.4f}, Death: {death:.4f}")
+            
+            # Find all edges that exist at the birth scale
+            birth_edges = []
+            for i in range(len(tokens)):
+                for j in range(i + 1, len(tokens)):
+                    dist = distance_matrix[i, j]
+                    if dist <= birth + 0.001:  # Small tolerance for numerical precision
+                        birth_edges.append((i, j, dist))
+            
+            print(f"  Total edges at birth scale: {len(birth_edges)}")
+            
+            # Build a graph from these edges
+            from collections import defaultdict, deque
+            
+            graph = defaultdict(list)
+            for i, j, dist in birth_edges:
+                graph[i].append((j, dist))
+                graph[j].append((i, dist))
+            
+            # Get the birth edge from cocycle (this triggered the loop)
+            birth_edge_vertices = set()
             if orig_idx < len(h1_cocycles):
                 cocycle = h1_cocycles[orig_idx]
+                print(f"  Birth edge(s):")
+                for edge_data in cocycle:
+                    if len(edge_data) >= 3:
+                        vertex1, vertex2, coeff = edge_data[0], edge_data[1], edge_data[2]
+                        birth_edge_vertices.update([vertex1, vertex2])
+                        if vertex1 < len(tokens) and vertex2 < len(tokens):
+                            dist = distance_matrix[vertex1, vertex2]
+                            print(f"    '{tokens[vertex1]}' ↔ '{tokens[vertex2]}' (dist: {dist:.4f})")
+            
+            # Find actual cycles in the graph using DFS
+            def find_cycles_containing_vertices(graph, target_vertices, max_cycles=3):
+                cycles = []
+                visited_global = set()
                 
-                print(f"  Loop formed by {len(cocycle)} edges:")
-                
-                # Debug: check cocycle structure
-                print(f"  Cocycle type: {type(cocycle)}")
-                if len(cocycle) > 0:
-                    print(f"  First cocycle element type: {type(cocycle[0])}")
-                    print(f"  First cocycle element: {cocycle[0]}")
-                
-                # Extract the tokens involved in this specific loop
-                loop_tokens = set()
-                edge_details = []
-                
-                # Handle different cocycle formats
-                try:
-                    for item in cocycle:
-                        if isinstance(item, tuple) and len(item) == 2:
-                            edge_idx, coeff = item
-                        elif isinstance(item, (list, np.ndarray)) and len(item) == 2:
-                            edge_idx, coeff = item[0], item[1]
-                        else:
-                            # If it's just an edge index without coefficient
-                            edge_idx = item
-                            coeff = 1.0
+                for start_vertex in target_vertices:
+                    if start_vertex in visited_global:
+                        continue
                         
-                        edge_details.append((edge_idx, coeff))
+                    # DFS to find cycles containing this vertex
+                    def dfs_cycles(current, path, visited, start):
+                        if len(path) > 10:  # Prevent very long cycles
+                            return
                         
-                        # Try to find which token pair this edge represents
-                        n_vertices = len(tokens)
-                        if edge_idx < n_vertices * (n_vertices - 1) // 2:
-                            # Convert edge index to vertex pair
-                            i, j = self._edge_index_to_vertices(edge_idx, n_vertices)
-                            loop_tokens.add(i)
-                            loop_tokens.add(j)
-                            
-                            dist = distance_matrix[i, j]
-                            print(f"    Edge {edge_idx}: '{tokens[i]}' ↔ '{tokens[j]}' (coeff: {coeff}, dist: {dist:.4f})")
-                        else:
-                            print(f"    Edge {edge_idx}: (invalid edge index, coeff: {coeff})")
+                        for neighbor, _ in graph[current]:
+                            if neighbor == start and len(path) >= 3:
+                                # Found a cycle back to start
+                                cycle = path + [current]
+                                if len(cycle) >= 3:
+                                    cycles.append(cycle[:])
+                                    visited_global.update(cycle)
+                            elif neighbor not in visited and len(path) < 8:
+                                visited.add(neighbor)
+                                dfs_cycles(neighbor, path + [current], visited, start)
+                                visited.remove(neighbor)
+                    
+                    if len(cycles) < max_cycles:
+                        visited = {start_vertex}
+                        dfs_cycles(start_vertex, [], visited, start_vertex)
                 
-                except Exception as e:
-                    print(f"  Error processing cocycle: {e}")
-                    print(f"  Raw cocycle data: {cocycle}")
+                return cycles[:max_cycles]
+            
+            # Find cycles containing the birth edge vertices
+            if birth_edge_vertices:
+                cycles = find_cycles_containing_vertices(graph, birth_edge_vertices)
                 
-                # Summary of tokens in this loop
-                if loop_tokens:
-                    print(f"  Tokens involved in this loop:")
-                    for token_idx in sorted(loop_tokens):
-                        if token_idx < len(tokens):
-                            print(f"    '{tokens[token_idx]}'")
+                if cycles:
+                    print(f"  Found {len(cycles)} cycle(s) in the loop:")
+                    for cycle_idx, cycle in enumerate(cycles):
+                        print(f"    Cycle {cycle_idx + 1}: {len(cycle)} tokens")
+                        cycle_tokens = [tokens[v] for v in cycle if v < len(tokens)]
+                        print(f"      Path: {' → '.join(cycle_tokens[:8])}{'...' if len(cycle_tokens) > 8 else ''}")
+                        
+                        # Show distances along the cycle
+                        print(f"      Distances:")
+                        for i in range(len(cycle)):
+                            v1, v2 = cycle[i], cycle[(i + 1) % len(cycle)]
+                            if v1 < len(tokens) and v2 < len(tokens):
+                                dist = distance_matrix[v1, v2]
+                                print(f"        '{tokens[v1]}' → '{tokens[v2]}': {dist:.4f}")
+                else:
+                    print("  Could not trace complete cycle structure")
+                    
+                    # Fallback: show highly connected vertices
+                    print("  Highly connected tokens at birth scale:")
+                    vertex_connections = defaultdict(int)
+                    for i, j, dist in birth_edges:
+                        vertex_connections[i] += 1
+                        vertex_connections[j] += 1
+                    
+                    sorted_vertices = sorted(vertex_connections.items(), 
+                                           key=lambda x: x[1], reverse=True)
+                    for vertex, conn_count in sorted_vertices[:10]:
+                        if vertex < len(tokens):
+                            print(f"    '{tokens[vertex]}': {conn_count} connections")
             else:
-                print("  (Cocycle information not available for this loop)")
+                print("  (Cocycle information not available for detailed analysis)")
     
   def _edge_index_to_vertices(self, edge_idx, n_vertices):
       """Convert Ripser's edge index back to vertex pair indices"""
