@@ -31,6 +31,39 @@ class LLMTopology:
     
     return embeddings
 
+  def get_token_embeddings(self, texts, layer=-1):
+        """Get individual token embeddings (not mean-pooled)"""
+        if isinstance(texts, str):
+            texts = [texts]
+        
+        with torch.no_grad():
+            inputs = self.tokenizer(texts, return_tensors="pt", 
+                                   padding=True, truncation=True).to(self.device)
+            
+            outputs = self.model(**inputs, output_hidden_states=True)
+            hidden_states = outputs.hidden_states[layer]
+            
+            # Get tokens for reference
+            tokens = []
+            for i, input_ids in enumerate(inputs['input_ids']):
+                text_tokens = []
+                for j, token_id in enumerate(input_ids):
+                    if inputs['attention_mask'][i][j] == 1:  # Only non-padded tokens
+                        token_text = self.tokenizer.decode([token_id])
+                        text_tokens.append(token_text)
+                tokens.extend(text_tokens)
+            
+            # Flatten embeddings for all valid tokens
+            embeddings_list = []
+            for i, hidden in enumerate(hidden_states):
+                for j, embedding in enumerate(hidden):
+                    if inputs['attention_mask'][i][j] == 1:  # Only non-padded tokens
+                        embeddings_list.append(embedding)
+            
+            embeddings = torch.stack(embeddings_list)
+        
+        return embeddings, tokens
+
 
   def compute_distance_matrix(self, embeddings, metric = "cosine"):
     with torch.no_grad():
@@ -131,7 +164,7 @@ class LLMTopology:
   def print_sig_loops(self, text, layer=-1, persistence_threshold=0.27, top_k=5):
         """Print which tokens contribute to significant loops using cocycles"""
         # Get token-level embeddings and tokens
-        embeddings, tokens = self.get_embeddings(text, layer)
+        embeddings, tokens = self.get_token_embeddings(text, layer)
         distance_matrix = self.compute_distance_matrix(embeddings)
         
         # Compute persistence diagrams WITH cocycles
