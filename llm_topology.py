@@ -67,6 +67,8 @@ class LLMTopology:
 
   def compute_distance_matrix(self, embeddings, metric = "cosine"):
     with torch.no_grad():
+        embeddings = embeddings.float()
+      
         if metric == "cosine":
             embeddings_norm = F.normalize(embeddings, p=2, dim=1)
             cosine_sim = torch.mm(embeddings_norm, embeddings_norm.t())
