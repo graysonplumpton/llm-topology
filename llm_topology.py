@@ -131,7 +131,7 @@ class LLMTopology:
   def print_sig_loops(self, text, layer=-1, persistence_threshold=0.27, top_k=5):
         """Print which tokens contribute to significant loops using cocycles"""
         # Get token-level embeddings and tokens
-        embeddings, tokens = self.get_token_embeddings(text, layer)
+        embeddings, tokens = self.get_embeddings(text, layer)
         distance_matrix = self.compute_distance_matrix(embeddings)
         
         # Compute persistence diagrams WITH cocycles
