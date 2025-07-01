@@ -124,6 +124,93 @@ class LLMTopology:
                         if death - birth > persistence_threshold]
 
     return len(significant_voids)
+
+
+
+  # Made my Claude, review: 
+  def print_sig_loops(self, text, layer=-1, persistence_threshold=0.27, top_k=5):
+        """Print which tokens contribute to significant loops using cocycles"""
+        # Get token-level embeddings and tokens
+        embeddings, tokens = self.get_token_embeddings(text, layer)
+        distance_matrix = self.compute_distance_matrix(embeddings)
+        
+        # Compute persistence diagrams WITH cocycles
+        diagrams = ripser(distance_matrix, distance_matrix=True, 
+                         thresh=persistence_threshold, maxdim=1, do_cocycles=True)
+        
+        h1_features = diagrams['dgms'][1]  # Loops
+        h1_cocycles = diagrams['cocycles'][1] if 'cocycles' in diagrams else []
+        
+        significant_loops = [(i, birth, death) for i, (birth, death) in enumerate(h1_features) 
+                           if death - birth > persistence_threshold]
+        
+        if not significant_loops:
+            print("No significant loops found.")
+            return
+        
+        print(f"\nFound {len(significant_loops)} significant loops:")
+        print("=" * 60)
+        
+        # Sort by persistence (death - birth)
+        significant_loops.sort(key=lambda x: x[2] - x[1], reverse=True)
+        
+        for loop_idx, (orig_idx, birth, death) in enumerate(significant_loops[:top_k]):
+            persistence = death - birth
+            print(f"\nLoop {loop_idx + 1} (Persistence: {persistence:.4f}):")
+            print(f"Birth: {birth:.4f}, Death: {death:.4f}")
+            
+            # Get the cocycle (representative cycle) for this loop
+            if orig_idx < len(h1_cocycles):
+                cocycle = h1_cocycles[orig_idx]
+                
+                print(f"  Loop formed by {len(cocycle)} edges:")
+                
+                # Extract the tokens involved in this specific loop
+                loop_tokens = set()
+                edge_details = []
+                
+                for edge_idx, coeff in cocycle:
+                    # Each edge connects two vertices (tokens)
+                    # We need to decode which tokens these are
+                    # This is a bit tricky - we need to map edge indices back to vertex pairs
+                    
+                    # For now, let's collect all edges and show the coefficient
+                    edge_details.append((edge_idx, coeff))
+                    
+                    # Try to find which token pair this edge represents
+                    # This requires understanding Ripser's internal edge indexing
+                    n_vertices = len(tokens)
+                    if edge_idx < n_vertices * (n_vertices - 1) // 2:
+                        # Convert edge index to vertex pair
+                        i, j = self._edge_index_to_vertices(edge_idx, n_vertices)
+                        loop_tokens.add(i)
+                        loop_tokens.add(j)
+                        
+                        dist = distance_matrix[i, j]
+                        print(f"    Edge {edge_idx}: '{tokens[i]}' ↔ '{tokens[j]}' (coeff: {coeff}, dist: {dist:.4f})")
+                
+                # Summary of tokens in this loop
+                if loop_tokens:
+                    print(f"  Tokens involved in this loop:")
+                    for token_idx in sorted(loop_tokens):
+                        print(f"    '{tokens[token_idx]}'")
+            else:
+                print("  (Cocycle information not available for this loop)")
+    
+    def _edge_index_to_vertices(self, edge_idx, n_vertices):
+        """Convert Ripser's edge index back to vertex pair indices"""
+        # Ripser uses upper triangular indexing
+        # Edge index k corresponds to vertices (i,j) where i < j
+        k = edge_idx
+        i = 0
+        while i + 1 < n_vertices:
+            max_j_for_i = n_vertices - i - 1
+            if k < max_j_for_i:
+                j = i + 1 + k
+                return i, j
+            k -= max_j_for_i
+            i += 1
+        return 0, 1  # fallback
     
 
   
