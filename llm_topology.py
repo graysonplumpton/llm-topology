@@ -197,20 +197,20 @@ class LLMTopology:
             else:
                 print("  (Cocycle information not available for this loop)")
     
-    def _edge_index_to_vertices(self, edge_idx, n_vertices):
-        """Convert Ripser's edge index back to vertex pair indices"""
-        # Ripser uses upper triangular indexing
-        # Edge index k corresponds to vertices (i,j) where i < j
-        k = edge_idx
-        i = 0
-        while i + 1 < n_vertices:
-            max_j_for_i = n_vertices - i - 1
-            if k < max_j_for_i:
-                j = i + 1 + k
-                return i, j
-            k -= max_j_for_i
-            i += 1
-        return 0, 1  # fallback
+  def _edge_index_to_vertices(self, edge_idx, n_vertices):
+      """Convert Ripser's edge index back to vertex pair indices"""
+      # Ripser uses upper triangular indexing
+      # Edge index k corresponds to vertices (i,j) where i < j
+      k = edge_idx 
+      i = 0
+      while i + 1 < n_vertices:
+          max_j_for_i = n_vertices - i - 1
+          if k < max_j_for_i:
+              j = i + 1 + k
+              return i, j
+          k -= max_j_for_i
+          i += 1
+      return 0, 1  # fallback
     
 
   
