@@ -200,35 +200,53 @@ class LLMTopology:
                 
                 print(f"  Loop formed by {len(cocycle)} edges:")
                 
+                # Debug: check cocycle structure
+                print(f"  Cocycle type: {type(cocycle)}")
+                if len(cocycle) > 0:
+                    print(f"  First cocycle element type: {type(cocycle[0])}")
+                    print(f"  First cocycle element: {cocycle[0]}")
+                
                 # Extract the tokens involved in this specific loop
                 loop_tokens = set()
                 edge_details = []
                 
-                for edge_idx, coeff in cocycle:
-                    # Each edge connects two vertices (tokens)
-                    # We need to decode which tokens these are
-                    # This is a bit tricky - we need to map edge indices back to vertex pairs
-                    
-                    # For now, let's collect all edges and show the coefficient
-                    edge_details.append((edge_idx, coeff))
-                    
-                    # Try to find which token pair this edge represents
-                    # This requires understanding Ripser's internal edge indexing
-                    n_vertices = len(tokens)
-                    if edge_idx < n_vertices * (n_vertices - 1) // 2:
-                        # Convert edge index to vertex pair
-                        i, j = self._edge_index_to_vertices(edge_idx, n_vertices)
-                        loop_tokens.add(i)
-                        loop_tokens.add(j)
+                # Handle different cocycle formats
+                try:
+                    for item in cocycle:
+                        if isinstance(item, tuple) and len(item) == 2:
+                            edge_idx, coeff = item
+                        elif isinstance(item, (list, np.ndarray)) and len(item) == 2:
+                            edge_idx, coeff = item[0], item[1]
+                        else:
+                            # If it's just an edge index without coefficient
+                            edge_idx = item
+                            coeff = 1.0
                         
-                        dist = distance_matrix[i, j]
-                        print(f"    Edge {edge_idx}: '{tokens[i]}' ↔ '{tokens[j]}' (coeff: {coeff}, dist: {dist:.4f})")
+                        edge_details.append((edge_idx, coeff))
+                        
+                        # Try to find which token pair this edge represents
+                        n_vertices = len(tokens)
+                        if edge_idx < n_vertices * (n_vertices - 1) // 2:
+                            # Convert edge index to vertex pair
+                            i, j = self._edge_index_to_vertices(edge_idx, n_vertices)
+                            loop_tokens.add(i)
+                            loop_tokens.add(j)
+                            
+                            dist = distance_matrix[i, j]
+                            print(f"    Edge {edge_idx}: '{tokens[i]}' ↔ '{tokens[j]}' (coeff: {coeff}, dist: {dist:.4f})")
+                        else:
+                            print(f"    Edge {edge_idx}: (invalid edge index, coeff: {coeff})")
+                
+                except Exception as e:
+                    print(f"  Error processing cocycle: {e}")
+                    print(f"  Raw cocycle data: {cocycle}")
                 
                 # Summary of tokens in this loop
                 if loop_tokens:
                     print(f"  Tokens involved in this loop:")
                     for token_idx in sorted(loop_tokens):
-                        print(f"    '{tokens[token_idx]}'")
+                        if token_idx < len(tokens):
+                            print(f"    '{tokens[token_idx]}'")
             else:
                 print("  (Cocycle information not available for this loop)")
     
