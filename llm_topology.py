@@ -164,37 +164,6 @@ class LLMTopology:
 
   # Made my Claude, review: 
   def print_sig_loops(self, text, layer=-1, persistence_threshold=0.27, top_k=5):
-        """Print which tokens contribute to significant loops using cocycles"""
-        # Get token-level embeddings and tokens
-        embeddings, tokens = self.get_token_embeddings(text, layer)
-        distance_matrix = self.compute_distance_matrix(embeddings)
-        
-        # Compute persistence diagrams WITH cocycles
-        diagrams = ripser(distance_matrix, distance_matrix=True, 
-                         thresh=persistence_threshold, maxdim=1, do_cocycles=True)
-        
-        h1_features = diagrams['dgms'][1]  # Loops
-        h1_cocycles = diagrams['cocycles'][1] if 'cocycles' in diagrams else []
-        
-        significant_loops = [(i, birth, death) for i, (birth, death) in enumerate(h1_features) 
-                           if death - birth > persistence_threshold]
-        
-        if not significant_loops:
-            print("No significant loops found.")
-            return
-        
-        print(f"\nFound {len(significant_loops)} significant loops:")
-        print("=" * 60)
-        
-        # Sort by persistence (death - birth)
-        significant_loops.sort(key=lambda x: x[2] - x[1], reverse=True)
-        
-        for loop_idx, (orig_idx, birth, death) in enumerate(significant_loops[:top_k]):
-            persistence = death - birth
-            print(f"\nLoop {loop_idx + 1} (Persistence: {persistence:.4f}):")
-            print(f"Birth: {birth:.4f}, Death: {death:.4f}")
-            
-    def print_sig_loops(self, text, layer=-1, persistence_threshold=0.27, top_k=5):
         """Print which tokens contribute to significant loops with complete loop structure"""
         # Get token-level embeddings and tokens
         embeddings, tokens = self.get_token_embeddings(text, layer)
