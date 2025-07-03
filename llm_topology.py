@@ -195,7 +195,7 @@ class LLMTopology:
                            if death - birth > persistence_threshold]
     return len(significant_loops)
 
-  def h2_features_out(self, input_sentence, target_tokens, layer=-1, persistence_threshold = 0.27):
+  def topology_out(self, input_sentence, target_tokens, layer=-1, persistence_threshold = 0.27):
     embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
 
     distance_matrix = self.compute_distance_matrix(embeddings)
