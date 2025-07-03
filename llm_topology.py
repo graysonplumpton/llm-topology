@@ -241,5 +241,5 @@ class LLMTopology:
                       if birth <= persistence_threshold and 
                       (death > persistence_threshold or np.isinf(death)))
 
-    return len(alive_components) 
+    return alive_components
   
