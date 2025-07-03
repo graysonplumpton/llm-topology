@@ -186,7 +186,7 @@ class LLMTopology:
     
     return torch.stack(embeddings).cpu()  # [num_tokens, hidden_dim]
 
-def sig_loops_out(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.25):
+  def sig_loops_out(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.25):
     embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
     distance_matrix = self.compute_distance_matrix(embeddings)
     diagrams = ripser(distance_matrix, distance_matrix=True, thresh=persistence_threshold, maxdim=1)
