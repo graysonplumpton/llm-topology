@@ -219,4 +219,27 @@ class LLMTopology:
     print(f"Total loops: {len(h1_features)}")
     print(f"Significant loops: {len(significant_loops)}")
 
+  def total_loops_out(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.27):
+    embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
+    distance_matrix = self.compute_distance_matrix(embeddings)
+
+    diagrams = ripser(distance_matrix, distance_matrix = True, thresh = persistence_threshold, maxdim = 1)
+
+    h1_features = diagrams['dgms'][1]
+
+    return len(h1_features)
+
+  def out_components(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.27):
+    embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
+    distance_matrix = self.compute_distance_matrix(embeddings)
+
+    diagrams = ripser(distance_matrix, distance_matrix = True, thresh = persistence_threshold, maxdim = 1)
+
+    h0_features = diagrams['dgms'][0]
+
+    alive_components = sum(1 for birth, death in h0_features 
+                      if birth <= persistence_threshold and 
+                      (death > persistence_threshold or np.isinf(death)))
+
+    return len(alive_components) 
   
