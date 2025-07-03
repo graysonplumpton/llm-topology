@@ -160,6 +160,56 @@ class LLMTopology:
 
     return len(significant_voids)
 
-  
+  def get_output_embeddings(self, input_sentence, target_token):
+    """
+    Get output embedding for a specific target token given an input sentence.
+    
+    Args:
+        input_sentence (str): The input sentence/context
+        target_token (str): The token to get output embedding for
+    
+    Returns:
+        torch.Tensor: Output embedding for the target token
+    """
+    with torch.no_grad():
+        # Tokenize the input sentence
+        inputs = self.tokenizer(input_sentence, return_tensors="pt", 
+                               padding=True, truncation=True).to(self.device)
+        
+        # Get model outputs (logits = predictions for next tokens)
+        outputs = self.model(**inputs)
+        logits = outputs.logits  # Shape: [batch_size, seq_len, vocab_size]
+        
+        # Get the token ID for our target token
+        target_token_id = self.tokenizer.encode(target_token, add_special_tokens=False)[0]
+        
+        # Extract the output embedding for this specific token across all positions
+        # This gives us how much the model "wants" to predict this token at each position
+        token_logits = logits[0, :, target_token_id]  # Shape: [seq_len]
+        
+        # You can also get the full output embedding space at the last position
+        # (which is typically where next token prediction happens)
+        last_position_logits = logits[0, -1, :]  # Shape: [vocab_size]
+        
+        # Or get embeddings for this token from the output embedding matrix
+        # (if the model has an output embedding layer)
+        if hasattr(self.model, 'lm_head'):
+            # For models like GPT that have a language modeling head
+            output_embedding = self.model.lm_head.weight[target_token_id]  # Shape: [hidden_size]
+        elif hasattr(self.model, 'embed_out'):
+            # For some other model architectures
+            output_embedding = self.model.embed_out.weight[target_token_id]
+        else:
+            # Fallback: use the last layer's representation projected to this token
+            output_embedding = last_position_logits[target_token_id].unsqueeze(0)
+    
+    return {
+        'token_logits_all_positions': token_logits.cpu(),
+        'last_position_full_logits': last_position_logits.cpu(), 
+        'token_output_embedding': output_embedding.cpu(),
+        'target_token_id': target_token_id,
+        'input_sentence': input_sentence,
+        'target_token': target_token
+    }
 
   
