@@ -243,7 +243,7 @@ class LLMTopology:
 
     return alive_components
 
-  def internal_layer_topology(self, input, target_tokens, persistence_threshold=0.27):
+  def internal_layer_topology(self, input_sentence, target_tokens, persistence_threshold=0.27):
     layers = list(range(-29, 0))  
     word_embeddings = []
     
