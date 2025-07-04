@@ -244,18 +244,23 @@ class LLMTopology:
     return alive_components
 
   def internal_layer_topology(self, input_sentence, target_tokens, persistence_threshold=0.27):
+
     layers = list(range(-29, 0))  
-    word_embeddings = []
+    all_embeddings = []
     
-    # Get the word's embedding from each layer
+    # Get embeddings for all tokens from each layer
     for layer in layers:
-        embedding = self.get_output_embeddings(input_sentence, target_tokens, layer=layer)
-        word_embeddings.append(embedding.squeeze(0))  # Remove batch dimension
+        layer_embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer=layer)
+        # layer_embeddings shape: [num_tokens, hidden_dim]
+        
+        # Add each token's embedding from this layer
+        for i in range(layer_embeddings.shape[0]):
+            all_embeddings.append(layer_embeddings[i])  # [hidden_dim]
     
-    # Stack all layer embeddings: [29, hidden_dim]
-    trajectory_embeddings = torch.stack(word_embeddings)
+    # Stack all embeddings: [num_tokens * num_layers, hidden_dim]
+    trajectory_embeddings = torch.stack(all_embeddings)
     
-    # Compute distance matrix between layer representations
+    # Compute distance matrix between all representations
     distance_matrix = self.compute_distance_matrix(trajectory_embeddings)
     
     # Compute persistent homology
@@ -274,7 +279,7 @@ class LLMTopology:
     
     significant_voids = [(birth, death) for birth, death in h2_features 
                         if death - birth > persistence_threshold]
-
+    
     print(f"\n Topological Analysis:")
     print(f"Connected components: {alive_components}")
     print(f"Total component births: {len(h0_features)}")
@@ -282,4 +287,6 @@ class LLMTopology:
     print(f"Significant loops: {len(significant_loops)}")
     print(f"Total voids: {len(h2_features)}")
     print(f"Significant voids: {len(significant_voids)}")
+    
+    return diagrams
   
