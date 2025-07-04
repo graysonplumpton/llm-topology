@@ -242,4 +242,36 @@ class LLMTopology:
                       (death > persistence_threshold or np.isinf(death)))
 
     return alive_components
+
+  def internal_layer_topology(self, input, target_tokens, persistence_threshold=0.27):
+    layers = np.arange(-29, 0)
+    embeddings = []
+    for l in layers:
+      embeddings = embeddings + self.get_output_embeddings(input, target_tokens, layer=l)
+
+    distance_matrix = self.compute_distance_matrix(embeddings)
+
+    diagrams = ripser(distance_matrix, distance_matrix = True, thresh = persistence_threshold, maxdim = 2)
+
+    h0_features = diagrams['dgms'][0]  # Connected components
+    h1_features = diagrams['dgms'][1]  # Loops
+    h2_features = diagrams['dgms'][2]  # Voids
+
+    alive_components = sum(1 for birth, death in h0_features 
+                      if birth <= persistence_threshold and 
+                      (death > persistence_threshold or np.isinf(death)))
+
+    significant_loops = [(birth, death) for birth, death in h1_features 
+                           if death - birth > persistence_threshold]
+
+    significant_voids = [(birth, death) for birth, death in h2_features 
+                        if death - birth > persistence_threshold]
+
+    print(f"\n Topological Analysis:")
+    print(f"Connected components: {alive_components}")
+    print(f"Total component births: {len(h0_features)}")
+    print(f"Total loops: {len(h1_features)}")
+    print(f"Significant loops: {len(significant_loops)}")
+    print(f"Total voids: {len(h2_features)}")
+    print(f"Significant voids: {len(significant_voids)})
   
