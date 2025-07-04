@@ -249,7 +249,7 @@ class LLMTopology:
     
     # Get the word's embedding from each layer
     for layer in layers:
-        embedding = self.get_output_embeddings(input_sentence, [target_word], layer=layer)
+        embedding = self.get_output_embeddings(input_sentence, target_tokens, layer=layer)
         word_embeddings.append(embedding.squeeze(0))  # Remove batch dimension
     
     # Stack all layer embeddings: [29, hidden_dim]
