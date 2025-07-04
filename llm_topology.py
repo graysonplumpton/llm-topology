@@ -273,5 +273,5 @@ class LLMTopology:
     print(f"Total loops: {len(h1_features)}")
     print(f"Significant loops: {len(significant_loops)}")
     print(f"Total voids: {len(h2_features)}")
-    print(f"Significant voids: {len(significant_voids)})
+    print(f"Significant voids: {len(significant_voids)}")
   
