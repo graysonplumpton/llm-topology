@@ -626,4 +626,105 @@ def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
     else:
         print("Token manifold analysis failed")
         return {'success': False}
-  
+
+  def _topology_from_embeddings(self, embeddings, persistence_threshold=0.27):
+    """Helper method to compute topology from embeddings"""
+    distance_matrix = self.compute_distance_matrix(embeddings)
+    diagrams = ripser(distance_matrix, distance_matrix=True, 
+                     thresh=persistence_threshold, maxdim=1)
+    
+    h0_features = diagrams['dgms'][0]
+    h1_features = diagrams['dgms'][1]
+    
+    alive_components = sum(1 for birth, death in h0_features 
+                          if birth <= persistence_threshold and 
+                          (death > persistence_threshold or np.isinf(death)))
+    
+    significant_loops = [(birth, death) for birth, death in h1_features 
+                           if death - birth > persistence_threshold]
+    
+    print(f"Connected components: {alive_components}")
+    print(f"Total component births: {len(h0_features)}")
+    print(f"Total loops: {len(h1_features)}")
+    print(f"Significant loops: {len(significant_loops)}")
+    
+    return diagrams
+
+def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
+    """Assess if the data lies on a meaningful manifold"""
+    print(f"=== Manifold Quality Assessment ===")
+    
+    embeddings = self.get_embeddings(texts, layer)
+    
+    # PCA comparison
+    pca = PCA(n_components=2)
+    pca_embedding = pca.fit_transform(embeddings.cpu().numpy())
+    pca_var_explained = pca.explained_variance_ratio_.sum()
+    
+    print(f"PCA explained variance (2D): {pca_var_explained:.3f}")
+    
+    # ISOMAP analysis
+    isomap_results = self.apply_isomap_analysis(embeddings, n_neighbors, n_components=2)
+    
+    if isomap_results['success']:
+        isomap_correlation = isomap_results['distance_correlation']
+        
+        if isomap_correlation > 0.6:
+            manifold_quality = "Strong"
+        elif isomap_correlation > 0.4:
+            manifold_quality = "Moderate"
+        else:
+            manifold_quality = "Weak"
+            
+        print(f"Manifold quality: {manifold_quality} (correlation: {isomap_correlation:.3f})")
+        
+        recommendation = 'use_isomap' if isomap_correlation > 0.4 and pca_var_explained < 0.9 else 'use_pca'
+            
+        return {
+            'manifold_quality': manifold_quality,
+            'isomap_correlation': isomap_correlation,
+            'recommendation': recommendation
+        }
+    else:
+        return {'manifold_quality': 'Unknown', 'recommendation': 'use_pca'}
+
+def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
+    """Analyze manifold structure of individual tokens"""
+    print(f"=== Token-Level Manifold Analysis ===")
+    
+    embeddings, tokens = self.get_token_embeddings(texts, layer)
+    print(f"Analyzing {len(tokens)} tokens")
+    
+    if len(tokens) < n_neighbors + 1:
+        n_neighbors = max(2, len(tokens) - 1)
+        print(f"Reduced n_neighbors to {n_neighbors}")
+    
+    isomap_results = self.apply_isomap_analysis(embeddings, n_neighbors, n_components=2)
+    
+    if isomap_results['success']:
+        isomap_embedding = isomap_results['isomap_embedding']
+        distances = pairwise_distances(isomap_embedding)
+        
+        # Most distant pair
+        max_dist_idx = np.unravel_index(distances.argmax(), distances.shape)
+        most_distant = (tokens[max_dist_idx[0]], tokens[max_dist_idx[1]], distances[max_dist_idx])
+        
+        # Most similar pair (excluding diagonal)
+        np.fill_diagonal(distances, np.inf)
+        min_dist_idx = np.unravel_index(distances.argmin(), distances.shape)
+        most_similar = (tokens[min_dist_idx[0]], tokens[min_dist_idx[1]], distances[min_dist_idx])
+        
+        print(f"\nToken Relationships:")
+        print(f"  Most distant: '{most_distant[0]}' ↔ '{most_distant[1]}' (dist: {most_distant[2]:.3f})")
+        print(f"  Most similar: '{most_similar[0]}' ↔ '{most_similar[1]}' (dist: {most_similar[2]:.3f})")
+        
+        return {
+            'tokens': tokens,
+            'manifold_results': isomap_results,
+            'most_distant_tokens': most_distant,
+            'most_similar_tokens': most_similar,
+            'success': True
+        }
+    else:
+        print("Token manifold analysis failed")
+        return {'success': False}
