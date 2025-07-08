@@ -399,7 +399,7 @@ class LLMTopology:
             'original_shape': embeddings_np.shape
         }
 
-def isomap_text_analysis(self, texts, layer=-1, n_neighbors=5, n_components=2, 
+  def isomap_text_analysis(self, texts, layer=-1, n_neighbors=5, n_components=2, 
                         persistence_threshold=0.27, compare_topology=True):
     """
     Complete ISOMAP analysis pipeline with detailed output (no plots)
@@ -456,7 +456,7 @@ def isomap_text_analysis(self, texts, layer=-1, n_neighbors=5, n_components=2,
     
     return isomap_results
 
-def find_optimal_isomap_params(self, texts, layer=-1, max_neighbors=None):
+  def find_optimal_isomap_params(self, texts, layer=-1, max_neighbors=None):
     """
     Find optimal ISOMAP parameters automatically
     """
@@ -513,7 +513,7 @@ def find_optimal_isomap_params(self, texts, layer=-1, max_neighbors=None):
         'all_results': results
     }
 
-def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
+  def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
     """
     Assess if the data lies on a meaningful manifold
     """
@@ -569,7 +569,7 @@ def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
         print(f"ISOMAP failed - data may not have clear manifold structure")
         return {'manifold_quality': 'Unknown', 'recommendation': 'use_pca'}
 
-def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
+  def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
     """
     Analyze manifold structure of individual tokens
     """
@@ -650,7 +650,7 @@ def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
     
     return diagrams
 
-def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
+  def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
     """Assess if the data lies on a meaningful manifold"""
     print(f"=== Manifold Quality Assessment ===")
     
@@ -688,7 +688,7 @@ def analyze_manifold_quality(self, texts, layer=-1, n_neighbors=5):
     else:
         return {'manifold_quality': 'Unknown', 'recommendation': 'use_pca'}
 
-def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
+  def token_manifold_analysis(self, texts, layer=-1, n_neighbors=5):
     """Analyze manifold structure of individual tokens"""
     print(f"=== Token-Level Manifold Analysis ===")
     
