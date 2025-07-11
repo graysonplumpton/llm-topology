@@ -9,6 +9,11 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import pairwise_distances
 from scipy.stats import pearsonr
 
+from sklearn.cluster import DBSCAN
+from sklearn.neighbors import NearestNeighbors
+from sklearn.metrics import silhouette_score
+import scipy.spatial.distance as distance
+
 # Already loaded: model_path, model, tokenizer
 
 class LLMTopology:
@@ -305,13 +310,19 @@ class LLMTopology:
     if not torch.is_tensor(embeddings):
         embeddings = torch.tensor(embeddings, device=self.device)
     
+    # Ensure embeddings are on the correct device
+    embeddings = embeddings.to(self.device)
+    
     if n_samples is None:
         n_samples = min(int(0.1 * len(embeddings)), 50)
     
     n_dims = embeddings.shape[1]
     
-    # Random points in data space - on GPU
+    # Random points in data space - ensure everything is on the same device
     data_min, data_max = embeddings.min(dim=0)[0], embeddings.max(dim=0)[0]
+    data_min = data_min.to(self.device)
+    data_max = data_max.to(self.device)
+    
     random_points = torch.rand(n_samples, n_dims, device=self.device) * (data_max - data_min) + data_min
     
     # Sample points from actual data
