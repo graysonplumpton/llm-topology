@@ -300,48 +300,54 @@ class LLMTopology:
     
     return diagrams
 
-  def hopkins_out(self, input_sentence, target_tokens, layer=-1, n_samples=None):
-    """Hopkins statistic for output embeddings - returns float"""
-    embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
-    return self.hopkins_statistic(embeddings, n_samples)
-
-  def hopkins_statistic(self, embeddings, n_samples=None):
-    """Hopkins statistic for clustering tendency - GPU optimized"""
-    if not torch.is_tensor(embeddings):
-        embeddings = torch.tensor(embeddings, device=self.device)
+  def simple_hopkins_test(embeddings):
+    """Simple Hopkins test to isolate the issue"""
+    embeddings = embeddings.float().cpu().numpy()  # Convert to numpy for simplicity
     
-    # Ensure embeddings are on the correct device and get the dtype
-    embeddings = embeddings.to(self.device)
-    embedding_dtype = embeddings.dtype
+    from sklearn.neighbors import NearestNeighbors
+    import numpy as np
     
-    if n_samples is None:
-        n_samples = min(int(0.1 * len(embeddings)), 50)
-    
+    n_samples = min(5, len(embeddings) - 1)
     n_dims = embeddings.shape[1]
     
-    # Random points in data space - ensure same device and dtype
-    data_min, data_max = embeddings.min(dim=0)[0], embeddings.max(dim=0)[0]
-    data_min = data_min.to(device=self.device, dtype=embedding_dtype)
-    data_max = data_max.to(device=self.device, dtype=embedding_dtype)
+    print(f"Embeddings shape: {embeddings.shape}")
+    print(f"Sample size: {n_samples}")
     
-    random_points = torch.rand(n_samples, n_dims, device=self.device, dtype=embedding_dtype) * (data_max - data_min) + data_min
+    # Random points in data space
+    data_min, data_max = embeddings.min(axis=0), embeddings.max(axis=0)
+    random_points = np.random.uniform(data_min, data_max, size=(n_samples, n_dims))
     
     # Sample points from actual data
-    sample_indices = torch.randperm(len(embeddings), device=self.device)[:n_samples]
+    sample_indices = np.random.choice(len(embeddings), n_samples, replace=False)
     sample_points = embeddings[sample_indices]
     
-    # Compute distances using torch.cdist (GPU optimized)
-    # Distances from random points to all data points
-    u_distances = torch.cdist(random_points, embeddings, p=2)
-    u_min_distances = torch.min(u_distances, dim=1)[0]
+    print(f"Data range: {data_min.mean():.6f} to {data_max.mean():.6f}")
     
-    # Distances from sample points to all other data points
-    w_distances = torch.cdist(sample_points, embeddings, p=2)
-    # Set self-distances to infinity to exclude them
-    for i, idx in enumerate(sample_indices):
-        w_distances[i, idx] = float('inf')
-    w_min_distances = torch.min(w_distances, dim=1)[0]
+    # Find nearest neighbors using sklearn
+    nbrs = NearestNeighbors(n_neighbors=2).fit(embeddings)
     
-    hopkins = torch.sum(u_min_distances) / (torch.sum(u_min_distances) + torch.sum(w_min_distances))
-    return hopkins.item()
+    # Distances from random points to nearest data point
+    u_distances, _ = nbrs.kneighbors(random_points)
+    u_distances = u_distances[:, 0]  # First neighbor
+    
+    # Distances from sample points to nearest other data point  
+    w_distances, _ = nbrs.kneighbors(sample_points)
+    w_distances = w_distances[:, 1]  # Second neighbor (exclude self)
+    
+    print(f"U distances: {u_distances}")
+    print(f"W distances: {w_distances}")
+    print(f"U sum: {np.sum(u_distances)}")
+    print(f"W sum: {np.sum(w_distances)}")
+    
+    u_sum = np.sum(u_distances)
+    w_sum = np.sum(w_distances)
+    total_sum = u_sum + w_sum
+    
+    if total_sum == 0:
+        return 0.5
+    
+    hopkins = u_sum / total_sum
+    print(f"Hopkins: {hopkins}")
+    
+    return hopkins
 
