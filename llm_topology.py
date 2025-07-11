@@ -305,43 +305,91 @@ class LLMTopology:
     embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
     return self.hopkins_statistic(embeddings, n_samples)
 
-  def hopkins_statistic(self, embeddings, n_samples=None):
+  def hopkins_statistic(self, embeddings, n_samples=None, debug=False):
     """Hopkins statistic for clustering tendency - Simple robust implementation using sklearn"""
     if not torch.is_tensor(embeddings):
         embeddings = torch.tensor(embeddings, device=self.device)
     
-    # Ensure embeddings are on the correct device and get the dtype
-    embeddings = embeddings.to(self.device)
-    embedding_dtype = embeddings.dtype
+    # Convert to numpy for robust calculation using sklearn
+    embeddings_np = embeddings.cpu().numpy().astype(np.float32)
+    
+    if len(embeddings_np) < 2:
+        if debug:
+            print("Warning: Less than 2 embeddings, returning 0.5")
+        return 0.5
     
     if n_samples is None:
-        n_samples = min(int(0.1 * len(embeddings)), 50)
+        n_samples = min(int(0.1 * len(embeddings_np)), 50)
     
-    n_dims = embeddings.shape[1]
+    # Ensure we have enough samples
+    n_samples = min(n_samples, len(embeddings_np) - 1)
     
-    # Random points in data space - ensure same device and dtype
-    data_min, data_max = embeddings.min(dim=0)[0], embeddings.max(dim=0)[0]
-    data_min = data_min.to(device=self.device, dtype=embedding_dtype)
-    data_max = data_max.to(device=self.device, dtype=embedding_dtype)
+    if debug:
+        print(f"Embeddings shape: {embeddings_np.shape}")
+        print(f"Using {n_samples} samples")
     
-    random_points = torch.rand(n_samples, n_dims, device=self.device, dtype=embedding_dtype) * (data_max - data_min) + data_min
+    n_dims = embeddings_np.shape[1]
+    
+    # Random points in data space
+    data_min, data_max = embeddings_np.min(axis=0), embeddings_np.max(axis=0)
+    
+    if debug:
+        print(f"Data range: {data_min.mean():.6f} to {data_max.mean():.6f}")
+    
+    # Check if all embeddings are identical
+    data_range = data_max - data_min
+    if np.all(data_range < 1e-6):
+        if debug:
+            print("Warning: All embeddings are nearly identical, returning 0.5")
+        return 0.5
+    
+    # Generate random points
+    random_points = np.random.uniform(data_min, data_max, size=(n_samples, n_dims))
     
     # Sample points from actual data
-    sample_indices = torch.randperm(len(embeddings), device=self.device)[:n_samples]
-    sample_points = embeddings[sample_indices]
+    sample_indices = np.random.choice(len(embeddings_np), n_samples, replace=False)
+    sample_points = embeddings_np[sample_indices]
     
-    # Compute distances using torch.cdist (GPU optimized)
-    # Distances from random points to all data points
-    u_distances = torch.cdist(random_points, embeddings, p=2)
-    u_min_distances = torch.min(u_distances, dim=1)[0]
+    # Find nearest neighbors using sklearn
+    from sklearn.neighbors import NearestNeighbors
+    nbrs = NearestNeighbors(n_neighbors=2).fit(embeddings_np)
     
-    # Distances from sample points to all other data points
-    w_distances = torch.cdist(sample_points, embeddings, p=2)
-    # Set self-distances to infinity to exclude them
-    for i, idx in enumerate(sample_indices):
-        w_distances[i, idx] = float('inf')
-    w_min_distances = torch.min(w_distances, dim=1)[0]
+    # Distances from random points to nearest data point
+    u_distances, _ = nbrs.kneighbors(random_points)
+    u_distances = u_distances[:, 0]  # First neighbor
     
-    hopkins = torch.sum(u_min_distances) / (torch.sum(u_min_distances) + torch.sum(w_min_distances))
-    return hopkins.item()
+    # Distances from sample points to nearest other data point
+    w_distances, _ = nbrs.kneighbors(sample_points)
+    w_distances = w_distances[:, 1]  # Second neighbor (exclude self)
+    
+    if debug:
+        print(f"U distances: mean={u_distances.mean():.6f}, sum={np.sum(u_distances):.6f}")
+        print(f"W distances: mean={w_distances.mean():.6f}, sum={np.sum(w_distances):.6f}")
+    
+    u_sum = np.sum(u_distances)
+    w_sum = np.sum(w_distances)
+    total_sum = u_sum + w_sum
+    
+    if debug:
+        print(f"U sum: {u_sum:.6f}")
+        print(f"W sum: {w_sum:.6f}")
+        print(f"Total sum: {total_sum:.6f}")
+    
+    if total_sum == 0 or np.isnan(total_sum) or np.isinf(total_sum):
+        if debug:
+            print("Warning: Numerical issue with distance sums, returning 0.5")
+        return 0.5
+    
+    hopkins = u_sum / total_sum
+    
+    if debug:
+        print(f"Hopkins result: {hopkins:.6f}")
+    
+    # Check for nan/inf result
+    if np.isnan(hopkins) or np.isinf(hopkins):
+        if debug:
+            print("Warning: Hopkins result is nan/inf, returning 0.5")
+        return 0.5
+    
+    return float(hopkins)
 
