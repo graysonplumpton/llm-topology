@@ -300,3 +300,48 @@ class LLMTopology:
     
     return diagrams
 
+  def hopkins_out(self, input_sentence, target_tokens, layer=-1, n_samples=None):
+    """Hopkins statistic for output embeddings - returns float"""
+    embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
+    return self.hopkins_statistic(embeddings, n_samples)
+
+  def hopkins_statistic(self, embeddings, n_samples=None):
+    """Hopkins statistic for clustering tendency - Simple robust implementation using sklearn"""
+    if not torch.is_tensor(embeddings):
+        embeddings = torch.tensor(embeddings, device=self.device)
+    
+    # Ensure embeddings are on the correct device and get the dtype
+    embeddings = embeddings.to(self.device)
+    embedding_dtype = embeddings.dtype
+    
+    if n_samples is None:
+        n_samples = min(int(0.1 * len(embeddings)), 50)
+    
+    n_dims = embeddings.shape[1]
+    
+    # Random points in data space - ensure same device and dtype
+    data_min, data_max = embeddings.min(dim=0)[0], embeddings.max(dim=0)[0]
+    data_min = data_min.to(device=self.device, dtype=embedding_dtype)
+    data_max = data_max.to(device=self.device, dtype=embedding_dtype)
+    
+    random_points = torch.rand(n_samples, n_dims, device=self.device, dtype=embedding_dtype) * (data_max - data_min) + data_min
+    
+    # Sample points from actual data
+    sample_indices = torch.randperm(len(embeddings), device=self.device)[:n_samples]
+    sample_points = embeddings[sample_indices]
+    
+    # Compute distances using torch.cdist (GPU optimized)
+    # Distances from random points to all data points
+    u_distances = torch.cdist(random_points, embeddings, p=2)
+    u_min_distances = torch.min(u_distances, dim=1)[0]
+    
+    # Distances from sample points to all other data points
+    w_distances = torch.cdist(sample_points, embeddings, p=2)
+    # Set self-distances to infinity to exclude them
+    for i, idx in enumerate(sample_indices):
+        w_distances[i, idx] = float('inf')
+    w_min_distances = torch.min(w_distances, dim=1)[0]
+    
+    hopkins = torch.sum(u_min_distances) / (torch.sum(u_min_distances) + torch.sum(w_min_distances))
+    return hopkins.item()
+
