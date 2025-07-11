@@ -310,20 +310,21 @@ class LLMTopology:
     if not torch.is_tensor(embeddings):
         embeddings = torch.tensor(embeddings, device=self.device)
     
-    # Ensure embeddings are on the correct device
+    # Ensure embeddings are on the correct device and get the dtype
     embeddings = embeddings.to(self.device)
+    embedding_dtype = embeddings.dtype
     
     if n_samples is None:
         n_samples = min(int(0.1 * len(embeddings)), 50)
     
     n_dims = embeddings.shape[1]
     
-    # Random points in data space - ensure everything is on the same device
+    # Random points in data space - ensure same device and dtype
     data_min, data_max = embeddings.min(dim=0)[0], embeddings.max(dim=0)[0]
-    data_min = data_min.to(self.device)
-    data_max = data_max.to(self.device)
+    data_min = data_min.to(device=self.device, dtype=embedding_dtype)
+    data_max = data_max.to(device=self.device, dtype=embedding_dtype)
     
-    random_points = torch.rand(n_samples, n_dims, device=self.device) * (data_max - data_min) + data_min
+    random_points = torch.rand(n_samples, n_dims, device=self.device, dtype=embedding_dtype) * (data_max - data_min) + data_min
     
     # Sample points from actual data
     sample_indices = torch.randperm(len(embeddings), device=self.device)[:n_samples]
