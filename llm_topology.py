@@ -397,6 +397,7 @@ class LLMTopology:
     comp = []
     cot_comp = []
     i = 1
+    print(f"Initial connected components: {self.out_components(questions[0], words, layer = 1, persistence_threshold = 0.3)}")
     print(f"Testing {len(questions)} questions on {len(words)} words")
     for q in questions:
       print(f"Testing question {i}")
