@@ -393,3 +393,21 @@ class LLMTopology:
     
     return float(hopkins)
 
+  def component_test(self, questions, cot_questions, words):
+    comp = []
+    cot_comp = []
+    i = 1
+    print(f"Testing {len(questions)} questions on {len(words)} words")
+    for q in questions:
+      print(f"Testing question {i}")
+      comp.append(self.out_components(q, words, persistence_threshold = 0.3))
+      i = i+1
+    print(f"Regular components: {comp}")
+    i = 1
+    for q in cot_questions:
+      print(f"Testing chain of thought question {i}")
+      cot_comp.append(self.out_components(q, words, persistence_threshold = 0.3))
+      i = i+1
+    print(f"Chain of thought components: {cot_comp}")
+    difference = [a - b for a, b in zip(cot_comp, comp)]
+    print(f"Difference between chain of thought and regular: {difference}")
