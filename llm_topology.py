@@ -492,6 +492,6 @@ class LLMTopology:
 
     cosine_similarities = torch.sum(norm_output_embed * norm_input_embed, dim=1).tolist()
 
-    distances = 1 - cosine_similarities 
+    distances = [1 - sim for sim in cosine_similarities]
 
     return np.mean(distances)
