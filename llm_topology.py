@@ -430,3 +430,51 @@ class LLMTopology:
     output_text = generated_text.split()
 
     return self.out_components(prompt, output_text, persistence_threshold = 0.3)
+
+
+  def print_components(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.23):
+    """
+    Returns lists of words in each connected component based on topological analysis
+    """
+    embeddings = self.get_output_embeddings(input_sentence, target_tokens, layer)
+    distance_matrix = self.compute_distance_matrix(embeddings)
+
+    # Get persistent homology
+    diagrams = ripser(distance_matrix, distance_matrix=True, thresh=persistence_threshold, maxdim=1)
+    h0_features = diagrams['dgms'][0]
+    
+    # Find alive components (those that persist beyond threshold)
+    alive_components = [(birth, death) for birth, death in h0_features 
+                       if birth <= persistence_threshold and 
+                       (death > persistence_threshold or np.isinf(death))]
+    
+    # Use hierarchical clustering to identify components
+    from scipy.cluster.hierarchy import linkage, fcluster
+    from scipy.spatial.distance import squareform
+    
+    # Convert distance matrix to condensed form for scipy
+    condensed_distances = squareform(distance_matrix, checks=False)
+    
+    # Perform hierarchical clustering
+    linkage_matrix = linkage(condensed_distances, method='single')
+    
+    # Cut the dendrogram at the persistence threshold to get clusters
+    cluster_labels = fcluster(linkage_matrix, persistence_threshold, criterion='distance')
+    
+    # Group words by cluster
+    components = {}
+    for i, (word, cluster_id) in enumerate(zip(target_tokens, cluster_labels)):
+        if cluster_id not in components:
+            components[cluster_id] = []
+        components[cluster_id].append(word)
+    
+    # Sort components by size (largest first)
+    sorted_components = sorted(components.values(), key=len, reverse=True)
+    
+    print(f"\nFound {len(sorted_components)} connected components:")
+    print(f"Alive components (persistent): {len(alive_components)}")
+    
+    for i, component in enumerate(sorted_components, 1):
+        print(f"Component {i} ({len(component)} words): {component}")
+    
+    return sorted_components
