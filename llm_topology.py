@@ -483,3 +483,15 @@ class LLMTopology:
         print(f"Component {i} ({len(component)} words): {component}")
     
     return sorted_components
+
+  def output_distance_mean(self, prompt, words):
+    output_embeddings = self.get_output_embeddings(prompt, words, layer=-1)
+    input_embeddings = self.get_output_embeddings(prompt, words, layer=1)
+    norm_output_embed = F.normalize(output_embeddings, p = 2, dim = 1)
+    norm_input_embed = F.normalize(input_embeddings, p = 2, dim = 1)
+
+    cosine_similarities = torch.sum(norm_output_embed * norm_input_embed, dim=1).tolist()
+
+    distances = 1 - cosine_similarities 
+
+    return np.mean(distances)
