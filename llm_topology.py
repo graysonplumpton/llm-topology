@@ -432,7 +432,7 @@ class LLMTopology:
     return self.out_components(prompt, output_text, persistence_threshold = 0.3)
 
 
-  def print_components(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.23):
+  def print_components(self, input_sentence, target_tokens, layer=-1, persistence_threshold=0.27):
     """
     Returns lists of words in each connected component based on topological analysis
     """
@@ -451,6 +451,11 @@ class LLMTopology:
     # Use hierarchical clustering to identify components
     from scipy.cluster.hierarchy import linkage, fcluster
     from scipy.spatial.distance import squareform
+    
+    # Clean up distance matrix for scipy (handle negative values and ensure symmetry)
+    distance_matrix = np.maximum(distance_matrix, 0)  # Remove negative values
+    distance_matrix = (distance_matrix + distance_matrix.T) / 2  # Ensure symmetry
+    np.fill_diagonal(distance_matrix, 0)  # Ensure diagonal is zero
     
     # Convert distance matrix to condensed form for scipy
     condensed_distances = squareform(distance_matrix, checks=False)
