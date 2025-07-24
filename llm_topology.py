@@ -415,10 +415,10 @@ class LLMTopology:
 
   def prompt_components(self, prompt, persistence_threshold = 0.3):
     #Assume loaded model with audomodelforcausallm
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+    inputs = self.tokenizer(prompt, return_tensors="pt").to(model.device)
 
     with torch.no_grad():
-      outputs = model.generate(
+      outputs = self.model.generate(
         **inputs,
         max_new_tokens=200,
         temperature=0.7,
@@ -426,7 +426,7 @@ class LLMTopology:
         pad_token_id=tokenizer.eos_token_id
       )
 
-    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
     output_text = generated_text.split()
 
     return self.out_components(prompt, output_text, persistence_threshold = 0.3)
