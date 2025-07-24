@@ -1,4 +1,4 @@
-limport torch
+import torch
 import torch.nn.functional as F
 import numpy as np
 from ripser import ripser
