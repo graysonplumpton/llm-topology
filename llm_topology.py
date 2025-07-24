@@ -412,3 +412,21 @@ class LLMTopology:
     print(f"Chain of thought components: {cot_comp}")
     difference = [a - b for a, b in zip(cot_comp, comp)]
     print(f"Difference between chain of thought and regular: {difference}")
+
+  def prompt_components(self, prompt, persistence_threshold = 0.3):
+    #Assume loaded model with audomodelforcausallm
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    with torch.no_grad():
+      outputs = model.generate(
+        **inputs,
+        max_new_tokens=200,
+        temperature=0.7,
+        do_sample=True,
+        pad_token_id=tokenizer.eos_token_id
+      )
+
+    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    output_text = generated_text.split()
+
+    return self.out_components(prompt, output_text, persistence_threshold = 0.3)
