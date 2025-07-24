@@ -495,3 +495,43 @@ class LLMTopology:
     distances = [1 - sim for sim in cosine_similarities]
 
     return np.mean(distances)
+
+  def output_distance_cumulative(self, prompt, words, start_layer=0, end_layer=-1):
+    """
+    Compute sum of cosine distances between consecutive layers across the entire model
+    """
+    # Determine the actual layer range
+    if end_layer == -1:
+        # Assuming your model has around 32 layers (adjust based on your model)
+        total_layers = 64  # Change this to match your model's layer count
+        end_layer = total_layers - 1
+    
+    if start_layer < 0:
+        start_layer = total_layers + start_layer
+    
+    total_distance = 0.0
+    
+    # Iterate through consecutive layer pairs
+    for layer_idx in range(start_layer, end_layer):
+        current_layer = layer_idx
+        next_layer = layer_idx + 1
+        
+        # Get embeddings from consecutive layers
+        current_embeddings = self.get_output_embeddings(prompt, words, layer=current_layer)
+        next_embeddings = self.get_output_embeddings(prompt, words, layer=next_layer)
+        
+        # Normalize embeddings
+        norm_current = F.normalize(current_embeddings, p=2, dim=1)
+        norm_next = F.normalize(next_embeddings, p=2, dim=1)
+        
+        # Compute cosine similarities
+        cosine_similarities = torch.sum(norm_current * norm_next, dim=1)
+        
+        # Convert to distances and take mean for this layer transition
+        distances = 1 - cosine_similarities
+        layer_mean_distance = torch.mean(distances).item()
+        
+        # Add to total
+        total_distance += layer_mean_distance
+    
+    return total_distance/64
