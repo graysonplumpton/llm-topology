@@ -1,4 +1,4 @@
-import torch
+limport torch
 import torch.nn.functional as F
 import numpy as np
 from ripser import ripser
@@ -415,7 +415,7 @@ class LLMTopology:
 
   def prompt_components(self, prompt, persistence_threshold = 0.3):
     #Assume loaded model with audomodelforcausallm
-    inputs = self.tokenizer(prompt, return_tensors="pt").to(model.device)
+    inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
 
     with torch.no_grad():
       outputs = self.model.generate(
