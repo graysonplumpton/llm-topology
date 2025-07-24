@@ -423,7 +423,7 @@ class LLMTopology:
         max_new_tokens=200,
         temperature=0.7,
         do_sample=True,
-        pad_token_id=tokenizer.eos_token_id
+        pad_token_id=self.tokenizer.eos_token_id
       )
 
     generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
