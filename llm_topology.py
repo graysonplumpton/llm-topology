@@ -534,4 +534,18 @@ class LLMTopology:
         # Add to total
         total_distance += layer_mean_distance
     
-    return total_distance/64
+    return total_distance
+
+  def component_layer_test(self, question, words, layers):
+    i = 1
+    comp = []
+    for l in layers:
+      print(f"Testing layer {l}")
+      comp.append(self.out_components(question, words, layer=l))
+      i = i+1
+    print(f"Components per layer for question {q}: {comp}")
+    return comp
+
+  def layertest(self, questions, words, layers):
+    for q in questions:
+      self.component_layer_test(q, words, layers)
