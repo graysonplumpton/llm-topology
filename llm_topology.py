@@ -543,7 +543,7 @@ class LLMTopology:
       print(f"Testing layer {l}")
       comp.append(self.out_components(question, words, layer=l))
       i = i+1
-    print(f"Components per layer for question {q}: {comp}")
+    print(f"Components per layer for question {question}: {comp}")
     return comp
 
   def layertest(self, questions, words, layers):
