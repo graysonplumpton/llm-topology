@@ -566,10 +566,14 @@ class LLMTopology:
       
       if truth_value == False:
         correct_comp = false_components
+        incorrect_comp = true_components
 
       if truth_value == True:
         correct_comp = true_components
+        incorrect_comp = false_components
 
-      print(f"Components of correct answer - incorrect answer: {correct_comp}")
+      difference = correct_comp - incorrect_comp
+
+      print(f"Components of correct answer - incorrect answer: {difference}")
 
 
