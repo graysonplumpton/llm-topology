@@ -549,3 +549,27 @@ class LLMTopology:
   def layertest(self, questions, words, layers):
     for q in questions:
       self.component_layer_test(q, words, layers)
+
+  def truthtest(self, true_false_statements, truth_list, words, layer=-1):
+    for i in range(0, len(true_false_statements)):
+      question = "Is the following statement true or false? " + true_false_statements[i]
+      question_true = question + " True."
+      question_false = question + " False."
+      truth_value = truth_list[i]
+      print(f"Testing question {question} ({truth_value})")
+      
+      true_components = self.out_components(question_true, words, layer=layer)
+      print(f"Components when 'True' appended: {true_components}")
+      
+      false_components = self.out_components(question_false, words, layer=layer)
+      print(f"Components when 'False' appended: {false_components}")
+      
+      if truth_value == False:
+        correct_comp = false_components
+
+      if truth_value == True:
+        correct_comp = true_components
+
+      print(f"Components of correct answer - incorrect answer: {correct_comp}")
+
+
