@@ -577,7 +577,7 @@ class LLMTopology:
       difference_list.append(difference)
 
       print(f"Components of correct answer - incorrect answer: {difference}")
-      if i%10 == 25:
+      if i%25 == 0:
         print(f"Current differences: {difference_list}")
 
 
