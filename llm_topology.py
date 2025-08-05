@@ -581,3 +581,54 @@ class LLMTopology:
         print(f"Current differences: {difference_list}")
 
 
+  def clustertest(self, input, tokens, layer=-1):
+    if isinstance(tokens, str):
+        tokens = [tokens]
+    
+    embeddings = []
+    
+    with torch.no_grad():
+        for token in tokens:
+            # Create context with each target token
+            full_text = input + " " + token
+            
+            # Tokenize 
+            inputs = self.tokenizer(full_text, return_tensors="pt", 
+                                   padding=True, truncation=True).to(self.device)
+            
+            # Get hidden states from specified layer
+            outputs = self.model(**inputs, output_hidden_states=True)
+            hidden_states = outputs.hidden_states[layer]
+            
+            # Get embedding for the target token position (last token)
+            token_embedding = hidden_states[0, -1, :]  # [hidden_dim]
+            embeddings.append(token_embedding)
+
+        embeddings = torch.stack(embeddings).cpu()
+
+    with torch.no_grad():
+        embeddings = embeddings.float()
+
+        embeddings_norm = F.normalize(embeddings, p=2, dim=1)
+        cosine_sim = torch.mm(embeddings_norm, embeddings_norm.t())
+
+    scores = []
+    epsilon = 1e-10
+
+    for i in range(len(tokens)):
+      score = 0.0
+      for j in range(len(tokens)):
+        if i != j:
+          sim_value = cosine_sim[i, j].item()
+          shifted_sim = sim_value + epsilon
+          score -= np.log(shifted_sim)
+
+      scores.append(score)
+
+    for token, score in zip(tokens, scores):
+      print(f"{token}: {score}")
+      
+    
+        
+
+
