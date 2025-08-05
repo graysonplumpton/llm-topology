@@ -582,6 +582,8 @@ class LLMTopology:
 
 
   def clustertest(self, input, tokens, layer=-1):
+    print(f"Input sentence: {input}")
+    print("Scores:")
     if isinstance(tokens, str):
         tokens = [tokens]
     
