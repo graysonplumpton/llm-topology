@@ -629,8 +629,93 @@ class LLMTopology:
 
     for token, score in zip(tokens, scores):
       print(f"{token}: {score}")
-      
-    
-        
 
+
+  def full_layer_test(self):
+    # load model already as self.model
+    num_layers = self.model.config.num_hidden_layers
+    layers = np.arange(-num_layers, 0)
+    cities = ["Paris", "London", "Tokyo", "Copenhagen", "Ottawa", "Beijing", "Dublin", "Berlin"]
+    questions = [
+        "What is the capital of France",
+        "What is the capital of England", 
+        "What is the capital of Japan",
+        "What is the capital of Denmark",
+        "What is the capital of Canada",
+        "What is the capital of China",
+        "What is the capital of Ireland",
+        "What is the capital of Germany"
+    ]
+    
+    for q in questions:
+        paris_scores = []
+        london_scores = []
+        tokyo_scores = []
+        copenhagen_scores = []
+        ottawa_scores = []
+        beijing_scores = []
+        dublin_scores = []
+        berlin_scores = []
+        
+        for l in layers:
+            embeddings = []
+            with torch.no_grad():
+                for token in cities:
+                    # Create context with each target token
+                    full_text = q + " " + token  # Changed from 'input' to 'q'
+                    
+                    # Tokenize 
+                    inputs = self.tokenizer(full_text, return_tensors="pt", 
+                                           padding=True, truncation=True).to(self.device)
+                    
+                    # Get hidden states from specified layer
+                    outputs = self.model(**inputs, output_hidden_states=True)
+                    hidden_states = outputs.hidden_states[l]  # Changed from 'layer' to 'l'
+                    
+                    # Get embedding for the target token position (last token)
+                    token_embedding = hidden_states[0, -1, :]  # [hidden_dim]
+                    embeddings.append(token_embedding)
+        
+                embeddings = torch.stack(embeddings).cpu()
+        
+            with torch.no_grad():
+                embeddings = embeddings.float()
+        
+                embeddings_norm = F.normalize(embeddings, p=2, dim=1)
+                cosine_sim = torch.mm(embeddings_norm, embeddings_norm.t())
+        
+            scores = []
+            epsilon = 1e-10
+        
+            for i in range(len(cities)):
+                score = 0.0
+                for j in range(len(cities)):
+                    if i != j:
+                        sim_value = cosine_sim[i, j].item()
+                        shifted_sim = sim_value + epsilon
+                        score -= np.log(shifted_sim)
+        
+                scores.append(score)
+        
+            paris_scores.append(scores[0])
+            london_scores.append(scores[1])
+            tokyo_scores.append(scores[2])
+            copenhagen_scores.append(scores[3])
+            ottawa_scores.append(scores[4])
+            beijing_scores.append(scores[5])
+            dublin_scores.append(scores[6])
+            berlin_scores.append(scores[7])
+            
+        print(f"Scores for question {q}")
+        print(f"Paris scores: {paris_scores}")
+        print(f"London scores: {london_scores}")
+        print(f"Tokyo scores: {tokyo_scores}")
+        print(f"Copenhagen scores: {copenhagen_scores}")
+        print(f"Ottawa scores: {ottawa_scores}")
+        print(f"Beijing scores: {beijing_scores}")
+        print(f"Dublin scores: {dublin_scores}")
+        print(f"Berlin scores: {berlin_scores}")
+
+    
+    
 
