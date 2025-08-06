@@ -647,7 +647,7 @@ class LLMTopology:
         "What is the capital of Germany"
     ]
     
-    for q in questions:
+    for q_idx, q in enumerate(questions):
         paris_scores = []
         london_scores = []
         tokyo_scores = []
