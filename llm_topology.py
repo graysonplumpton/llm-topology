@@ -635,17 +635,16 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
-
+    cities = ["Dollar", "Euro", "Yen", "Pound", "Yuan", "Rupee", "Peso", "Franc"]
     questions = [
-    "What is the closest planet to the Sun",
-    "What planet comes after Mercury",
-    "What planet comes after Venus",
-    "What planet comes after Earth",
-    "What planet comes after Mars",
-    "What planet comes after Jupiter",
-    "What planet comes after Saturn",
-    "What planet comes after Uranus"
+    "What is the currency of the United States",
+    "What is the currency of Germany", 
+    "What is the currency of Japan",
+    "What is the currency of the United Kingdom",
+    "What is the currency of China",
+    "What is the currency of India",
+    "What is the currency of Mexico",
+    "What is the currency of Switzerland"
     ]
     
     for q_idx, q in enumerate(questions):
