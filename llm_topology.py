@@ -648,7 +648,7 @@ class LLMTopology:
 ]
     
     for q_idx, q in enumerate(questions):
-        cherry_scores = []
+        paris_scores = []
         london_scores = []
         tokyo_scores = []
         copenhagen_scores = []
