@@ -635,16 +635,17 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = ["Sacramento", "Austin", "Albany", "Tallahassee", "Denver", "Phoenix", "Boston", "Atlanta"]
+    cities = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+
     questions = [
-    "What is the capital of California",
-    "What is the capital of Texas",
-    "What is the capital of New York",
-    "What is the capital of Florida",
-    "What is the capital of Colorado",
-    "What is the capital of Arizona",
-    "What is the capital of Massachusetts",
-    "What is the capital of Georgia"
+    "What is the first planet from the Sun",
+    "What is the second planet from the Sun",
+    "What is the third planet from the Sun",
+    "What is the fourth planet from the Sun",
+    "What is the fifth planet from the Sun",
+    "What is the sixth planet from the Sun",
+    "What is the seventh planet from the Sun",
+    "What is the eighth planet from the Sun"
 ]
     
     for q_idx, q in enumerate(questions):
