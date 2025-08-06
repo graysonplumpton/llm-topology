@@ -635,7 +635,7 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    colors = ["Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Black", "White"]
+    cities = ["Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Black", "White"]
     questions = [
     "What color is a cherry",
     "What color is the sky",
