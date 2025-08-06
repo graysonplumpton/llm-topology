@@ -706,15 +706,19 @@ class LLMTopology:
             dublin_scores.append(scores[6])
             berlin_scores.append(scores[7])
             
-        print(f"Scores for question {q}")
-        print(f"Paris scores: {paris_scores}")
-        print(f"London scores: {london_scores}")
-        print(f"Tokyo scores: {tokyo_scores}")
-        print(f"Copenhagen scores: {copenhagen_scores}")
-        print(f"Ottawa scores: {ottawa_scores}")
-        print(f"Beijing scores: {beijing_scores}")
-        print(f"Dublin scores: {dublin_scores}")
-        print(f"Berlin scores: {berlin_scores}")
+        all_scores = [paris_scores, london_scores, tokyo_scores, copenhagen_scores, 
+                     ottawa_scores, beijing_scores, dublin_scores, berlin_scores]
+        
+        score_dict = {}
+        for city, scores in zip(cities, all_scores):
+            score_dict[city] = [round(float(score), 3) for score in scores]
+       
+        print(f'"{q}": {{')
+        for i, (city, scores) in enumerate(score_dict.items()):
+            comma = "," if i < len(score_dict) - 1 else ""
+            print(f'    "{city}": {scores}{comma}')
+        print('}')
+        print()
 
     
     
