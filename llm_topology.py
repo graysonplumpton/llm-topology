@@ -635,7 +635,7 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+    cities = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
 
     questions = [
     "What is the closest planet to the Sun",
