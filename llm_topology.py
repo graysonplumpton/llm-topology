@@ -635,18 +635,18 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+    cities = = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
 
     questions = [
-    "What is the first planet from the Sun",
-    "What is the second planet from the Sun",
-    "What is the third planet from the Sun",
-    "What is the fourth planet from the Sun",
-    "What is the fifth planet from the Sun",
-    "What is the sixth planet from the Sun",
-    "What is the seventh planet from the Sun",
-    "What is the eighth planet from the Sun"
-]
+    "What is the closest planet to the Sun",
+    "What planet comes after Mercury",
+    "What planet comes after Venus",
+    "What planet comes after Earth",
+    "What planet comes after Mars",
+    "What planet comes after Jupiter",
+    "What planet comes after Saturn",
+    "What planet comes after Uranus"
+    ]
     
     for q_idx, q in enumerate(questions):
         paris_scores = []
