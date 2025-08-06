@@ -712,13 +712,18 @@ class LLMTopology:
         score_dict = {}
         for city, scores in zip(cities, all_scores):
             score_dict[city] = [round(float(score), 3) for score in scores]
-       
+        
+        # Print in the desired format
         print(f'"{q}": {{')
         for i, (city, scores) in enumerate(score_dict.items()):
             comma = "," if i < len(score_dict) - 1 else ""
             print(f'    "{city}": {scores}{comma}')
-        print('}')
-        print()
+        
+        # Add comma after closing brace for all questions except the last one
+        if q_idx < len(questions) - 1:
+            print('},')
+        else:
+            print('}')
 
     
     
