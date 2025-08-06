@@ -635,16 +635,16 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = ["Red", "Blue", "Green", "Yellow", "Orange", "Purple", "Black", "White"]
+    cities = ["Sacramento", "Austin", "Albany", "Tallahassee", "Denver", "Phoenix", "Boston", "Atlanta"]
     questions = [
-    "What color is a cherry",
-    "What color is the sky",
-    "What color is grass", 
-    "What color is the sun",
-    "What color is a carrot",
-    "What color is a grape",
-    "What color is coal",
-    "What color is snow"
+    "What is the capital of California",
+    "What is the capital of Texas",
+    "What is the capital of New York",
+    "What is the capital of Florida",
+    "What is the capital of Colorado",
+    "What is the capital of Arizona",
+    "What is the capital of Massachusetts",
+    "What is the capital of Georgia"
 ]
     
     for q_idx, q in enumerate(questions):
