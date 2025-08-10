@@ -635,16 +635,25 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = ["Dollar", "Euro", "Yen", "Pound", "Yuan", "Rupee", "Peso", "Franc"]
+    cities = [
+    "Texas",
+    "California", 
+    "Florida",
+    "New York",
+    "Illinois",
+    "Pennsylvania",
+    "Ohio",
+    "Georgia"
+    ]
     questions = [
-    "What is the currency of the United States",
-    "What is the currency of Germany", 
-    "What is the currency of Japan",
-    "What is the currency of the United Kingdom",
-    "What is the currency of China",
-    "What is the currency of India",
-    "What is the currency of Mexico",
-    "What is the currency of Switzerland"
+    "What is the capital of the state containing Dallas?",
+    "What is the capital of the state containing Los Angeles?",
+    "What is the capital of the state containing Miami?",
+    "What is the capital of the state containing New York City?",
+    "What is the capital of the state containing Chicago?",
+    "What is the capital of the state containing Philadelphia?",
+    "What is the capital of the state containing Cleveland?",
+    "What is the capital of the state containing Atlanta?"
     ]
     
     for q_idx, q in enumerate(questions):
