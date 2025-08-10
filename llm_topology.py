@@ -636,14 +636,14 @@ class LLMTopology:
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
     cities = [
-    "Texas",
-    "California", 
-    "Florida",
-    "New York",
-    "Illinois",
-    "Pennsylvania",
-    "Ohio",
-    "Georgia"
+    "Austin",
+    "Sacramento",
+    "Tallahassee", 
+    "Albany",
+    "Springfield",
+    "Harrisburg",
+    "Columbus",
+    "Atlanta"
     ]
     questions = [
     "What is the capital of the state containing Dallas?",
