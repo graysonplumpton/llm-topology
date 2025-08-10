@@ -646,14 +646,14 @@ class LLMTopology:
     "25"
     ]
     questions = [
-    "What is 7 × 8?",
-    "What is the square root of 36?",
-    "What is 15 + 27?",
-    "What is 144 ÷ 12?",
-    "What is 9²?",
-    "What is 63 - 28?",
-    "What is 5 × 13?",
-    "What is 100 ÷ 4?"
+    "7 × 8 equals ",
+    "The square root of 36 equals ",
+    "15 + 27 equals ",
+    "144 ÷ 12 equals ",
+    "9² equals ",
+    "63 - 28 equals ",
+    "5 × 13 equals ",
+    "100 ÷ 4 equals "
     ]
     
     for q_idx, q in enumerate(questions):
