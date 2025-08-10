@@ -636,24 +636,24 @@ class LLMTopology:
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
     cities = [
-    "Austin",
-    "Sacramento",
-    "Tallahassee", 
-    "Albany",
-    "Springfield",
-    "Harrisburg",
-    "Columbus",
-    "Atlanta"
+    "56",
+    "6",
+    "42",
+    "12",
+    "81",
+    "35",
+    "65",
+    "25"
     ]
     questions = [
-    "What is the capital of the state containing Dallas?",
-    "What is the capital of the state containing Los Angeles?",
-    "What is the capital of the state containing Miami?",
-    "What is the capital of the state containing New York City?",
-    "What is the capital of the state containing Chicago?",
-    "What is the capital of the state containing Philadelphia?",
-    "What is the capital of the state containing Cleveland?",
-    "What is the capital of the state containing Atlanta?"
+    "What is 7 × 8?",
+    "What is the square root of 36?",
+    "What is 15 + 27?",
+    "What is 144 ÷ 12?",
+    "What is 9²?",
+    "What is 63 - 28?",
+    "What is 5 × 13?",
+    "What is 100 ÷ 4?"
     ]
     
     for q_idx, q in enumerate(questions):
@@ -734,6 +734,5 @@ class LLMTopology:
         else:
             print('}')
 
-    
     
 
