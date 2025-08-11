@@ -635,43 +635,36 @@ class LLMTopology:
     # load model already as self.model
     num_layers = self.model.config.num_hidden_layers
     layers = np.arange(-num_layers, 0)
-    cities = [
-    "56",
-    "6",
-    "42",
-    "12",
-    "81",
-    "35",
-    "65",
-    "25"
-    ]
-    questions = [
-    "7 × 8 equals ",
-    "The square root of 36 equals ",
-    "15 + 27 equals ",
-    "144 ÷ 12 equals ",
-    "9² equals ",
-    "63 - 28 equals ",
-    "5 × 13 equals ",
-    "100 ÷ 4 equals "
-    ]
     
-    for q_idx, q in enumerate(questions):
-        paris_scores = []
-        london_scores = []
-        tokyo_scores = []
-        copenhagen_scores = []
-        ottawa_scores = []
-        beijing_scores = []
-        dublin_scores = []
-        berlin_scores = []
+    # Define countries and their cities (1 capital + 7 other major cities)
+    country_data = {
+        "France": ["Paris", "Lyon", "Marseille", "Toulouse", "Nice", "Nantes", "Strasbourg", "Bordeaux"],
+        "Germany": ["Berlin", "Munich", "Hamburg", "Cologne", "Frankfurt", "Stuttgart", "Dusseldorf", "Leipzig"],
+        "Italy": ["Rome", "Milan", "Naples", "Turin", "Florence", "Venice", "Bologna", "Genoa"],
+        "Spain": ["Madrid", "Barcelona", "Valencia", "Seville", "Bilbao", "Malaga", "Zaragoza", "Murcia"],
+        "United Kingdom": ["London", "Manchester", "Birmingham", "Glasgow", "Liverpool", "Edinburgh", "Bristol", "Leeds"],
+        "Japan": ["Tokyo", "Osaka", "Kyoto", "Yokohama", "Nagoya", "Kobe", "Fukuoka", "Sapporo"],
+        "Brazil": ["Brasilia", "Rio", "Paulo", "Salvador", "Fortaleza", "Recife", "Curitiba", "Manaus"],
+        "Australia": ["Canberra", "Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Darwin", "Hobart"]
+    }
+    
+    # Create questions
+    questions = [f"The capital of {country} is" for country in country_data.keys()]
+    
+    results = {}
+    
+    for q_idx, (country, q) in enumerate(zip(country_data.keys(), questions)):
+        cities = country_data[country]
+        
+        # Initialize score lists for each city
+        city_scores = {city: [] for city in cities}
         
         for l in layers:
             embeddings = []
             with torch.no_grad():
-                for token in cities:
-                    # Create context with each target token
-                    full_text = q + " " + token  # Changed from 'input' to 'q'
+                for city in cities:
+                    # Create context with each target city
+                    full_text = q + " " + city
                     
                     # Tokenize 
                     inputs = self.tokenizer(full_text, return_tensors="pt", 
@@ -679,7 +672,7 @@ class LLMTopology:
                     
                     # Get hidden states from specified layer
                     outputs = self.model(**inputs, output_hidden_states=True)
-                    hidden_states = outputs.hidden_states[l]  # Changed from 'layer' to 'l'
+                    hidden_states = outputs.hidden_states[l]
                     
                     # Get embedding for the target token position (last token)
                     token_embedding = hidden_states[0, -1, :]  # [hidden_dim]
@@ -706,27 +699,22 @@ class LLMTopology:
         
                 scores.append(score)
         
-            paris_scores.append(scores[0])
-            london_scores.append(scores[1])
-            tokyo_scores.append(scores[2])
-            copenhagen_scores.append(scores[3])
-            ottawa_scores.append(scores[4])
-            beijing_scores.append(scores[5])
-            dublin_scores.append(scores[6])
-            berlin_scores.append(scores[7])
-            
-        all_scores = [paris_scores, london_scores, tokyo_scores, copenhagen_scores, 
-                     ottawa_scores, beijing_scores, dublin_scores, berlin_scores]
+            # Assign scores to each city
+            for city, score in zip(cities, scores):
+                city_scores[city].append(score)
         
+        # Format scores for output
         score_dict = {}
-        for city, scores in zip(cities, all_scores):
+        for city, scores in city_scores.items():
             score_dict[city] = [round(float(score), 3) for score in scores]
         
         # Print in the desired format
         print(f'"{q}": {{')
         for i, (city, scores) in enumerate(score_dict.items()):
             comma = "," if i < len(score_dict) - 1 else ""
-            print(f'    "{city}": {scores}{comma}')
+            # Mark the capital (first city in list) with a comment
+            capital_marker = "  # capital" if i == 0 else ""
+            print(f'    "{city}": {scores}{comma}{capital_marker}')
         
         # Add comma after closing brace for all questions except the last one
         if q_idx < len(questions) - 1:
