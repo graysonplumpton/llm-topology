@@ -752,7 +752,7 @@ class LLMTopology:
     
     with torch.no_grad():
         # Check if we need attention weights
-        need_attention = (score == "attention entropy")
+        need_attention = (score == "entropy")
         
         # Get model outputs
         outputs = self.model(
@@ -791,7 +791,7 @@ class LLMTopology:
         elif score == "entropy":
             if outputs.attentions is None:
                 print("Warning: Attention weights not available.")
-                return self.prompt_clustertest(prompt, score="cosine cluster", print_full=print_full)
+                return self.promptcluster(prompt, score="cosine", print_full=print_full)
             
             # Get attention weights - average across all layers and heads for richer signal
             # You can also just use the last layer: attentions = outputs.attentions[-1]
