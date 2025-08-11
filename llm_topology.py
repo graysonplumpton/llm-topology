@@ -854,5 +854,31 @@ class LLMTopology:
     
     return final_score, individual_scores, tokens
 
+
+  def analyze_layer_evolution(self, prompt, token_position=-1):
+    """Track how a token's embedding evolves through layers"""
+    
+    inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+    
+    with torch.no_grad():
+        outputs = self.model(**inputs, output_hidden_states=True)
+        
+        # Get embeddings across all layers for the target token
+        all_layer_embeddings = []
+        for layer_hidden in outputs.hidden_states:
+            token_embedding = layer_hidden[0, token_position, :]
+            all_layer_embeddings.append(token_embedding)
+        
+        # Calculate similarity between consecutive layers
+        layer_similarities = []
+        for i in range(1, len(all_layer_embeddings)):
+            cos_sim = F.cosine_similarity(
+                all_layer_embeddings[i-1].unsqueeze(0),
+                all_layer_embeddings[i].unsqueeze(0)
+            ).item()
+            layer_similarities.append(cos_sim)
+            
+        return layer_similarities
+
     
 
