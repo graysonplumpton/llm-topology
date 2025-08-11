@@ -734,5 +734,114 @@ class LLMTopology:
         else:
             print('}')
 
+
+  def prompt_clustertest(self, prompt, score="cosine cluster", print_full=False):
+    """
+    Compute clustering scores for tokens in a prompt using contextualized embeddings.
+    
+    Args:
+        prompt: Input text to analyze
+        score: Type of scoring - "cosine cluster", "attention entropy", or "euclidean cluster"
+        print_full: Whether to print individual token scores
+    """
+    print(f"Input prompt: {prompt}")
+    print(f"Scoring method: {score}")
+    
+    # Tokenize the prompt
+    inputs = self.tokenizer(prompt, return_tensors="pt", 
+                           padding=True, truncation=True).to(self.device)
+    
+    # Get token strings for display
+    token_ids = inputs['input_ids'][0]
+    tokens = [self.tokenizer.decode([tid]) for tid in token_ids]
+    
+    with torch.no_grad():
+        # Get model outputs with hidden states and attentions
+        outputs = self.model(**inputs, output_hidden_states=True, output_attentions=True)
+        
+        # Get embeddings from the last layer (or specify different layer if needed)
+        hidden_states = outputs.hidden_states[-1]  # [batch_size, seq_len, hidden_dim]
+        embeddings = hidden_states[0]  # [seq_len, hidden_dim]
+        
+        if score == "cosine cluster":
+            # Normalize embeddings for cosine similarity
+            embeddings_norm = F.normalize(embeddings, p=2, dim=1)
+            cosine_sim = torch.mm(embeddings_norm, embeddings_norm.t())
+            
+            # Calculate scores using -log(cosine)
+            epsilon = 1e-10
+            individual_scores = []
+            total_score = 0.0
+            
+            for i in range(len(tokens)):
+                token_score = 0.0
+                for j in range(len(tokens)):
+                    if i != j:
+                        sim_value = cosine_sim[i, j].item()
+                        # Shift to ensure positive value for log
+                        shifted_sim = (sim_value + 1) / 2 + epsilon  # Maps [-1,1] to [0,1]
+                        pairwise_score = -np.log(shifted_sim)
+                        token_score += pairwise_score
+                        if i < j:  # Count each pair only once for total
+                            total_score += pairwise_score
+                individual_scores.append(token_score)
+            
+            # Total score is sum of all pairwise scores (counted once)
+            final_score = total_score
+            
+        elif score == "attention entropy":
+            # Get attention weights from last layer (or average across layers)
+            attentions = outputs.attentions[-1]  # [batch_size, num_heads, seq_len, seq_len]
+            # Average across attention heads
+            avg_attention = attentions[0].mean(dim=0)  # [seq_len, seq_len]
+            
+            individual_scores = []
+            total_score = 0.0
+            
+            for i in range(len(tokens)):
+                token_score = 0.0
+                for j in range(len(tokens)):
+                    if i != j:
+                        a_ij = avg_attention[i, j].item()
+                        if a_ij > 0:  # Avoid log(0)
+                            entropy_score = -a_ij * np.log(a_ij + 1e-10)
+                            token_score += entropy_score
+                            if i < j:  # Count each pair only once for total
+                                total_score += entropy_score
+                individual_scores.append(token_score)
+            
+            final_score = total_score
+            
+        elif score == "euclidean cluster":
+            # Calculate Euclidean distances
+            individual_scores = []
+            total_score = 0.0
+            
+            for i in range(len(tokens)):
+                token_score = 0.0
+                for j in range(len(tokens)):
+                    if i != j:
+                        # Euclidean distance between embeddings
+                        dist = torch.norm(embeddings[i] - embeddings[j], p=2).item()
+                        token_score += dist
+                        if i < j:  # Count each pair only once for total
+                            total_score += dist
+                individual_scores.append(token_score)
+            
+            final_score = total_score
+            
+        else:
+            raise ValueError(f"Unknown scoring method: {score}")
+    
+    # Print results
+    print(f"\nTotal {score} score: {final_score:.4f}")
+    
+    if print_full:
+        print("\nIndividual token scores:")
+        for token, token_score in zip(tokens, individual_scores):
+            print(f"  {token}: {token_score:.4f}")
+    
+    return final_score, individual_scores, tokens
+
     
 
