@@ -1148,7 +1148,7 @@ class LLMTopology:
       
       return result
   
-  def logit_lens_analysis_fixed(self, prompt, layer_indices=None):
+  def logit_lens_analysis(self, prompt, layer_indices=None):
     """
     Fixed version with proper normalization.
     """
