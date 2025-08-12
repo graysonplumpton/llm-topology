@@ -1209,7 +1209,38 @@ class LLMTopology:
       print(f"\n{layer}:")
       for token, prob in predictions[:10]:
         print(f"  {token}: {prob:.3f}")
+
+  def analyze_prompt_entropy(self, prompt, return_per_position=False):
+    """
+    Calculate entropy for next-token predictions.
     
+    Low entropy = model is confident
+    High entropy = model is uncertain
+    """
+    inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+    
+    with torch.no_grad():
+        outputs = self.model(**inputs)
+        logits = outputs.logits[0]  # [seq_len, vocab_size]
+        
+        # Calculate probabilities
+        probs = torch.softmax(logits, dim=-1)
+        
+        # Calculate entropy for each position
+        entropies = []
+        for pos in range(len(logits)):
+            pos_probs = probs[pos]
+            # Filter near-zero probabilities to avoid log(0)
+            pos_probs = pos_probs[pos_probs > 1e-8]
+            entropy = -torch.sum(pos_probs * torch.log2(pos_probs)).item()
+            entropies.append(entropy)
+    
+    if return_per_position:
+        tokens = self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
+        return list(zip(tokens, entropies))
+    else:
+        # Return entropy for last position (next token prediction)
+        return entropies[-1]
 
 
   
