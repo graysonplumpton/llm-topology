@@ -1204,4 +1204,12 @@ class LLMTopology:
     return results
 
 
+  def print_results(self, results):
+    for layer, prediction in results.items():
+      print(f"\n{layer}:")
+      for token, prob in predictions[:10]:
+        print(f"  {token}: {prob:.3f}")
+    
+
+
   
