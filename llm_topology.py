@@ -842,6 +842,110 @@ class LLMTopology:
     
     return final_score, individual_scores, tokens
 
+  def prompt_score(self, prompt, score="cosine", layer=-1):
+    inputs = self.tokenizer(prompt, return_tensors="pt", 
+                           padding=True, truncation=True).to(self.device)
+    
+    # Get token strings for display
+    token_ids = inputs['input_ids'][0]
+    tokens = [self.tokenizer.decode([tid]) for tid in token_ids]
+    
+    with torch.no_grad():
+        # Check if we need attention weights
+        need_attention = (score == "entropy")
+        
+        # Get model outputs
+        outputs = self.model(
+            **inputs, 
+            output_hidden_states=True, 
+            output_attentions=need_attention
+        )
+        
+        # Get embeddings from the last layer
+        hidden_states = outputs.hidden_states[-1]
+        embeddings = hidden_states[0]
+        
+        if score == "cosine":
+            # [Previous cosine cluster code remains the same]
+            embeddings_norm = F.normalize(embeddings, p=2, dim=1)
+            cosine_sim = torch.mm(embeddings_norm, embeddings_norm.t())
+            
+            epsilon = 1e-10
+            individual_scores = []
+            total_score = 0.0
+            
+            for i in range(len(tokens)):
+                token_score = 0.0
+                for j in range(len(tokens)):
+                    if i != j:
+                        sim_value = cosine_sim[i, j].item()
+                        shifted_sim = (sim_value + 1) / 2 + epsilon
+                        pairwise_score = -np.log(shifted_sim)
+                        token_score += pairwise_score
+                        if i < j:
+                            total_score += pairwise_score
+                individual_scores.append(token_score)
+            
+            final_score = total_score
+            
+        elif score == "entropy":
+            if outputs.attentions is None:
+                print("Warning: Attention weights not available.")
+                return self.promptcluster(prompt, score="cosine", print_full=print_full)
+            
+            # Get attention weights - average across all layers and heads for richer signal
+            # You can also just use the last layer: attentions = outputs.attentions[-1]
+            all_attentions = torch.stack(outputs.attentions)  # [num_layers, batch_size, num_heads, seq_len, seq_len]
+            avg_attention = all_attentions.mean(dim=(0, 2))[0]  # Average over layers and heads -> [seq_len, seq_len]
+            
+            individual_scores = []
+            total_score = 0.0
+            
+            # Calculate attention entropy for each token
+            for i in range(len(tokens)):
+                token_entropy = 0.0
+                
+                # Entropy from this token attending to others (outgoing attention)
+                for j in range(len(tokens)):
+                    if avg_attention[i, j] > 0:
+                        a_ij = avg_attention[i, j].item()
+                        token_entropy += -a_ij * np.log(a_ij + 1e-10)
+                
+                # Entropy from other tokens attending to this one (incoming attention)
+                for j in range(len(tokens)):
+                    if i != j and avg_attention[j, i] > 0:
+                        a_ji = avg_attention[j, i].item()
+                        token_entropy += -a_ji * np.log(a_ji + 1e-10)
+                
+                individual_scores.append(token_entropy)
+                total_score += token_entropy
+            
+            # Total score is sum of all individual entropies divided by 2 
+            # (since we counted each interaction twice)
+            final_score = total_score / 2
+            
+        elif score == "euclidean":
+            # [Previous euclidean code remains the same]
+            individual_scores = []
+            total_score = 0.0
+            
+            for i in range(len(tokens)):
+                token_score = 0.0
+                for j in range(len(tokens)):
+                    if i != j:
+                        dist = torch.norm(embeddings[i] - embeddings[j], p=2).item()
+                        token_score += dist
+                        if i < j:
+                            total_score += dist
+                individual_scores.append(token_score)
+            
+            final_score = total_score
+            
+        else:
+            raise ValueError(f"Unknown scoring method: {score}")
+
+    return final_score
+
 
   def analyze_layer_evolution(self, prompt, token_position=-1):
     """Track how a token's embedding evolves through layers"""
@@ -867,6 +971,184 @@ class LLMTopology:
             layer_similarities.append(cos_sim)
             
         return layer_similarities
+
+  import torch
+import torch.nn.functional as F
+from typing import Literal, Dict, Optional
+
+def analyze_token_distance_evolution(
+    self,
+    prompt: str,
+    target_token: str,
+    distance_metric: Literal["cosine", "euclidean"] = "cosine",
+    return_details: bool = False
+) -> Dict:
+    """
+    Analyze how the distance between a target token and the last token changes
+    as they progress through model layers.
+    
+    Args:
+        prompt: Input text
+        target_token: Token to track (e.g., "France")
+        distance_metric: "cosine" or "euclidean"
+        return_details: If True, return additional information
+    
+    Returns:
+        Dictionary with distances across layers and optional details
+    """
+    
+    # Tokenize the prompt
+    inputs = self.tokenizer(
+        prompt, 
+        return_tensors="pt",
+        add_special_tokens=True
+    ).to(self.device)
+    
+    # Get token strings and find target token position(s)
+    token_ids = inputs['input_ids'][0]
+    tokens = self.tokenizer.convert_ids_to_tokens(token_ids)
+    
+    # Find the target token position(s)
+    # Handle potential subword tokenization
+    target_positions = []
+    for i, token in enumerate(tokens):
+        # Clean token for comparison (remove special chars like ▁ for Llama/Qwen)
+        clean_token = token.replace('▁', '').replace('Ġ', '')
+        if target_token.lower() in clean_token.lower():
+            target_positions.append(i)
+    
+    if not target_positions:
+        # Try partial matching for split tokens
+        for i in range(len(tokens) - 1):
+            combined = ''.join([
+                tokens[j].replace('▁', '').replace('Ġ', '') 
+                for j in range(i, min(i+3, len(tokens)))
+            ])
+            if target_token.lower() in combined.lower():
+                target_positions.append(i)
+                break
+    
+    if not target_positions:
+        raise ValueError(f"Token '{target_token}' not found in prompt. "
+                        f"Available tokens: {[t.replace('▁', '') for t in tokens]}")
+    
+    # Use the first occurrence if multiple found
+    target_pos = target_positions[0]
+    
+    # Get the actual sequence length (excluding padding)
+    seq_len = inputs['attention_mask'][0].sum().item()
+    last_token_pos = seq_len - 1
+    
+    # Get model outputs with all hidden states
+    with torch.no_grad():
+        outputs = self.model(**inputs, output_hidden_states=True)
+    
+    # Calculate distances across layers
+    distances = []
+    layer_details = []
+    
+    for layer_idx, hidden_state in enumerate(outputs.hidden_states):
+        # Get embeddings for this layer
+        layer_embeddings = hidden_state[0]  # Remove batch dimension
+        
+        # Get target token and last token embeddings
+        target_embedding = layer_embeddings[target_pos]
+        last_token_embedding = layer_embeddings[last_token_pos]
+        
+        # Calculate distance based on metric
+        if distance_metric == "cosine":
+            # Cosine distance = 1 - cosine_similarity
+            cos_sim = F.cosine_similarity(
+                target_embedding.unsqueeze(0),
+                last_token_embedding.unsqueeze(0)
+            )
+            distance = (1 - cos_sim).item()
+        else:  # euclidean
+            distance = torch.norm(
+                target_embedding - last_token_embedding, p=2
+            ).item()
+        
+        distances.append(distance)
+        
+        if return_details:
+            layer_details.append({
+                'layer': layer_idx,
+                'distance': distance,
+                'target_norm': torch.norm(target_embedding).item(),
+                'last_token_norm': torch.norm(last_token_embedding).item()
+            })
+    
+    # Create result dictionary
+    result = {
+        'distances': distances,
+        'target_token': tokens[target_pos],
+        'target_position': target_pos,
+        'last_token': tokens[last_token_pos],
+        'last_token_position': last_token_pos,
+        'metric': distance_metric,
+        'num_layers': len(distances)
+    }
+    
+    # Add analysis
+    result['analysis'] = {
+        'initial_distance': distances[0],
+        'final_distance': distances[-1],
+        'total_change': distances[-1] - distances[0],
+        'max_distance': max(distances),
+        'min_distance': min(distances),
+        'max_distance_layer': distances.index(max(distances)),
+        'min_distance_layer': distances.index(min(distances)),
+        'monotonic_increase': all(distances[i] <= distances[i+1] 
+                                  for i in range(len(distances)-1)),
+        'monotonic_decrease': all(distances[i] >= distances[i+1] 
+                                  for i in range(len(distances)-1))
+    }
+    
+    if return_details:
+        result['layer_details'] = layer_details
+    
+    return result
+
+# Example usage
+def demo_distance_tracking(self):
+    """Demo the distance evolution analysis."""
+    
+    prompt = "The capital of France is Paris"
+    target = "France"
+    
+    # Get distance evolution
+    result = self.analyze_token_distance_evolution(
+        prompt=prompt,
+        target_token=target,
+        distance_metric="cosine",
+        return_details=True
+    )
+    
+    # Print summary
+    print(f"Tracking: '{result['target_token']}' (pos {result['target_position']}) "
+          f"→ '{result['last_token']}' (pos {result['last_token_position']})")
+    print(f"Metric: {result['metric']}")
+    print(f"Number of layers: {result['num_layers']}")
+    print("\nDistance Evolution:")
+    print(f"  Initial (layer 0): {result['analysis']['initial_distance']:.4f}")
+    print(f"  Final (layer {result['num_layers']-1}): {result['analysis']['final_distance']:.4f}")
+    print(f"  Total change: {result['analysis']['total_change']:.4f}")
+    print(f"  Min distance: {result['analysis']['min_distance']:.4f} "
+          f"(layer {result['analysis']['min_distance_layer']})")
+    print(f"  Max distance: {result['analysis']['max_distance']:.4f} "
+          f"(layer {result['analysis']['max_distance_layer']})")
+    
+    # Show first few and last few distances
+    print("\nLayer-by-layer distances:")
+    for i in range(min(5, len(result['distances']))):
+        print(f"  Layer {i}: {result['distances'][i]:.4f}")
+    if len(result['distances']) > 10:
+        print("  ...")
+        for i in range(-3, 0):
+            layer_num = len(result['distances']) + i
+            print(f"  Layer {layer_num}: {result['distances'][layer_num]:.4f}")
+    
+    return result
 
     
 
