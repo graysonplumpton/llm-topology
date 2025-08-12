@@ -649,7 +649,7 @@ class LLMTopology:
     }
     
     # Create questions
-    questions = [f"The capital of {country} is" for country in country_data.keys()]
+    questions = [f"The capital of {country} is (choose between {country_data[country]})" for country in country_data.keys()]
     
     results = {}
     
