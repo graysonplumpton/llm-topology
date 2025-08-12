@@ -1148,34 +1148,46 @@ class LLMTopology:
       
       return result
   
-  def logit_lens_analysis(self, prompt, layer_indices=None):
+  def logit_lens_analysis_fixed(self, prompt, layer_indices=None):
     """
-    See what tokens the model is 'thinking about' at each layer.
+    Fixed version with proper normalization.
     """
     inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
     
     with torch.no_grad():
         outputs = self.model(**inputs, output_hidden_states=True)
         
-        # Get the unembedding matrix (lm_head weights)
-        unembed = self.model.lm_head.weight  # Shape: [vocab_size, hidden_dim]
+        # Get the unembedding matrix
+        unembed = self.model.lm_head.weight
         
-        # Analyze specific layers
+        # IMPORTANT: Check if model has final layer norm
+        if hasattr(self.model.model, 'norm'):
+            final_norm = self.model.model.norm
+        elif hasattr(self.model.model, 'final_layernorm'):
+            final_norm = self.model.model.final_layernorm
+        else:
+            final_norm = None
+        
         if layer_indices is None:
-            layer_indices = [-25, -20, -15, 2-10, -5, -1]  # Sample layers
+            layer_indices = [-25, -20, -15, -8, -5, -1]
         
         results = {}
         for layer_idx in layer_indices:
-            hidden_state = outputs.hidden_states[layer_idx][0]  # [seq_len, hidden_dim]
+            hidden_state = outputs.hidden_states[layer_idx][0]
+            last_token_hidden = hidden_state[-1]
             
-            # Focus on the last token position (where answer forms)
-            last_token_hidden = hidden_state[-1]  # [hidden_dim]
+            # Apply layer norm if not the final layer
+            if layer_idx != -1 and final_norm is not None:
+                last_token_hidden = final_norm(last_token_hidden)
             
-            # Project to vocabulary space
-            logits = torch.matmul(last_token_hidden, unembed.T)  # [vocab_size]
+            # Project to vocabulary
+            logits = torch.matmul(last_token_hidden, unembed.T)
+            
+            # Temperature scaling might help
+            logits = logits / 0.7  # Adjust temperature
+            
             probs = torch.softmax(logits, dim=-1)
             
-            # Get top predicted tokens
             top_probs, top_indices = torch.topk(probs, k=10)
             top_tokens = [self.tokenizer.decode([idx]) for idx in top_indices]
             
