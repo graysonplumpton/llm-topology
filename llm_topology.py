@@ -1159,7 +1159,15 @@ class LLMTopology:
         
         # Get the unembedding matrix and find its device
         unembed = self.model.lm_head.weight
-        unembed_device = unembed.device  # Get the device where lm_head lives
+        unembed_device = unembed.device
+        
+        # Get the final layer norm - this is crucial for correct predictions
+        # For Llama models, it's usually model.model.norm
+        if hasattr(self.model, 'model') and hasattr(self.model.model, 'norm'):
+            final_norm = self.model.model.norm
+        else:
+            final_norm = None
+            print("Warning: No final layer norm found - results may be incorrect")
         
         # Analyze specific layers
         if layer_indices is None:
@@ -1172,11 +1180,19 @@ class LLMTopology:
             # Focus on the last token position (where answer forms)
             last_token_hidden = hidden_state[-1]  # [hidden_dim]
             
+            # Apply layer norm for all non-final layers (critical for correct predictions!)
+            if layer_idx != -1 and final_norm is not None:
+                last_token_hidden = final_norm(last_token_hidden)
+            
             # Move hidden state to same device as unembed matrix
-            last_token_hidden = last_token_hidden.to(unembed_device)  # FIX: Move to lm_head's device
+            last_token_hidden = last_token_hidden.to(unembed_device)
             
             # Project to vocabulary space
             logits = torch.matmul(last_token_hidden, unembed.T)  # [vocab_size]
+            
+            # Apply temperature scaling for better probability distribution
+            logits = logits / 0.8  # Slightly lower temperature for sharper distribution
+            
             probs = torch.softmax(logits, dim=-1)
             
             # Get top predicted tokens
