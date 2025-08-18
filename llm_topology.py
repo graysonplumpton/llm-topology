@@ -1421,7 +1421,7 @@ class LLMTopology:
             print(f'    "{answer}": {scores}')
     print("}")
     
-    return results
+  
 
 
     
