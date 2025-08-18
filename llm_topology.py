@@ -1272,6 +1272,8 @@ class LLMTopology:
     # Find the positions of each answer in the token sequence
     answer_positions = {}
     
+    print(f"\nTokenized prompt: {tokens}")
+    
     for answer in answers:
         # Tokenize each answer separately to handle multi-token answers
         answer_tokens = self.tokenizer.tokenize(answer)
