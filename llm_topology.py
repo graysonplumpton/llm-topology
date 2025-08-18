@@ -1244,7 +1244,17 @@ class LLMTopology:
 
 
   def multi_choice(self, question, answers, score="cosine"):
+    """
+    Analyze multiple choice answers by computing clustering scores at each layer.
     
+    Args:
+        question: The question string
+        answers: List of answer choices
+        score: Scoring method ("cosine", "entropy", or "euclidean")
+    
+    Returns:
+        Dictionary mapping each answer to its scores across all layers
+    """
     num_layers = self.model.config.num_hidden_layers
     
     # Format the prompt
@@ -1261,17 +1271,41 @@ class LLMTopology:
     
     # Find the positions of each answer in the token sequence
     answer_positions = {}
+    print(f"\nTokenized prompt: {tokens}")
+    print(f"Token IDs: {token_ids.tolist()}")
+    
     for answer in answers:
         # Tokenize each answer separately to handle multi-token answers
         answer_tokens = self.tokenizer.tokenize(answer)
         answer_token_ids = self.tokenizer.convert_tokens_to_ids(answer_tokens)
         
+        print(f"\nSearching for '{answer}':")
+        print(f"  Answer tokens: {answer_tokens}")
+        print(f"  Answer token IDs: {answer_token_ids}")
+        
+        found = False
         # Find where this answer appears in the full sequence
         for i in range(len(token_ids) - len(answer_token_ids) + 1):
             if all(token_ids[i+j] == answer_token_ids[j] for j in range(len(answer_token_ids))):
                 # Store the range of positions for this answer
                 answer_positions[answer] = list(range(i, i + len(answer_token_ids)))
+                print(f"  Found at positions: {answer_positions[answer]}")
+                found = True
                 break
+        
+        if not found:
+            print(f"  WARNING: Could not find '{answer}' in tokenized prompt!")
+            # Try a fallback: look for partial matches or similar tokens
+            for i, token in enumerate(tokens):
+                if answer.lower() in token.lower() or token.lower() in answer.lower():
+                    answer_positions[answer] = [i]
+                    print(f"  Fallback: Found partial match at position {i}: '{token}'")
+                    break
+    
+    print(f"\nTotal answers found: {len(answer_positions)} out of {len(answers)}")
+    if len(answer_positions) < 2:
+        print("ERROR: Need at least 2 answers to compute clustering scores!")
+        return {answer: [0.0] * num_layers for answer in answers}
     
     # Initialize results dictionary
     results = {answer: [] for answer in answers}
@@ -1298,11 +1332,13 @@ class LLMTopology:
             # Calculate scores for each answer
             for answer in answers:
                 if answer not in answer_positions:
+                    print(f"  Skipping {answer} - not found in tokens")
                     layer_scores[answer] = 0.0
                     continue
                 
                 positions = answer_positions[answer]
                 answer_score = 0.0
+                comparisons_made = 0
                 
                 if score == "cosine":
                     # Calculate cosine similarity-based clustering score
@@ -1327,6 +1363,11 @@ class LLMTopology:
                             # Convert similarity to distance-like score
                             shifted_sim = (sim + 1) / 2 + 1e-10
                             answer_score += -np.log(shifted_sim)
+                            comparisons_made += 1
+                    
+                    if comparisons_made == 0:
+                        print(f"    Warning: No comparisons made for {answer} at layer {layer_idx}")
+                        answer_score = 0.0
                     
                 elif score == "entropy":
                     if outputs.attentions is None:
@@ -1383,8 +1424,19 @@ class LLMTopology:
             for answer in answers:
                 results[answer].append(layer_scores.get(answer, 0.0))
     
-    # Print results as a simple dictionary
-    print(results)
+    # Print results with each answer on a different line
+    print("{")
+    for i, (answer, scores) in enumerate(results.items()):
+        if i < len(results) - 1:
+            print(f'    "{answer}": {scores},')
+        else:
+            print(f'    "{answer}": {scores}')
+    print("}")
+    
+    # Debug: Check if we found all answers in the token sequence
+    print("\nDebug - Answer positions found:")
+    for answer, positions in answer_positions.items():
+        print(f"  {answer}: tokens at positions {positions}")
     
     return results
 
