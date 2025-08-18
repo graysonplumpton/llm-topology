@@ -1243,4 +1243,166 @@ class LLMTopology:
         return entropies[-1]
 
 
+  def multi_choice(self, question, answers, score="cosine"):
+    
+    num_layers = self.model.config.num_hidden_layers
+    
+    # Format the prompt
+    answers_str = ", ".join(answers)
+    prompt = f"{question} (choose between {answers_str})"
+    
+    # Tokenize the prompt
+    inputs = self.tokenizer(prompt, return_tensors="pt", 
+                           padding=True, truncation=True).to(self.device)
+    
+    # Get token strings and find answer positions
+    token_ids = inputs['input_ids'][0]
+    tokens = [self.tokenizer.decode([tid]) for tid in token_ids]
+    
+    # Find the positions of each answer in the token sequence
+    answer_positions = {}
+    for answer in answers:
+        # Tokenize each answer separately to handle multi-token answers
+        answer_tokens = self.tokenizer.tokenize(answer)
+        answer_token_ids = self.tokenizer.convert_tokens_to_ids(answer_tokens)
+        
+        # Find where this answer appears in the full sequence
+        for i in range(len(token_ids) - len(answer_token_ids) + 1):
+            if all(token_ids[i+j] == answer_token_ids[j] for j in range(len(answer_token_ids))):
+                # Store the range of positions for this answer
+                answer_positions[answer] = list(range(i, i + len(answer_token_ids)))
+                break
+    
+    # Initialize results dictionary
+    results = {answer: [] for answer in answers}
+    
+    with torch.no_grad():
+        # Check if we need attention weights
+        need_attention = (score == "entropy")
+        
+        # Get model outputs with all hidden states
+        outputs = self.model(
+            **inputs, 
+            output_hidden_states=True, 
+            output_attentions=need_attention
+        )
+        
+        # Process each layer
+        for layer_idx in range(num_layers):
+            layer_scores = {}
+            
+            # Get embeddings from this layer
+            hidden_states = outputs.hidden_states[layer_idx + 1]  # +1 because first is embeddings
+            embeddings = hidden_states[0]
+            
+            # Calculate scores for each answer
+            for answer in answers:
+                if answer not in answer_positions:
+                    layer_scores[answer] = 0.0
+                    continue
+                
+                positions = answer_positions[answer]
+                answer_score = 0.0
+                
+                if score == "cosine":
+                    # Calculate cosine similarity-based clustering score
+                    embeddings_norm = F.normalize(embeddings, p=2, dim=1)
+                    
+                    # Average embedding for multi-token answers
+                    if len(positions) > 1:
+                        answer_embedding = embeddings_norm[positions].mean(dim=0, keepdim=True)
+                    else:
+                        answer_embedding = embeddings_norm[positions[0]].unsqueeze(0)
+                    
+                    # Calculate similarity with all other answer embeddings
+                    for other_answer in answers:
+                        if other_answer != answer and other_answer in answer_positions:
+                            other_positions = answer_positions[other_answer]
+                            if len(other_positions) > 1:
+                                other_embedding = embeddings_norm[other_positions].mean(dim=0, keepdim=True)
+                            else:
+                                other_embedding = embeddings_norm[other_positions[0]].unsqueeze(0)
+                            
+                            sim = torch.cosine_similarity(answer_embedding, other_embedding).item()
+                            # Convert similarity to distance-like score
+                            shifted_sim = (sim + 1) / 2 + 1e-10
+                            answer_score += -np.log(shifted_sim)
+                    
+                elif score == "entropy":
+                    if outputs.attentions is None:
+                        print(f"Warning: Attention weights not available for layer {layer_idx}")
+                        answer_score = 0.0
+                    else:
+                        # Get attention weights for this layer
+                        layer_attention = outputs.attentions[layer_idx]  # [batch_size, num_heads, seq_len, seq_len]
+                        avg_attention = layer_attention.mean(dim=1)[0]  # Average over heads -> [seq_len, seq_len]
+                        
+                        # Calculate attention entropy for answer tokens
+                        for pos in positions:
+                            # Outgoing attention entropy
+                            for j in range(len(tokens)):
+                                if avg_attention[pos, j] > 0:
+                                    a_ij = avg_attention[pos, j].item()
+                                    answer_score += -a_ij * np.log(a_ij + 1e-10)
+                            
+                            # Incoming attention entropy
+                            for j in range(len(tokens)):
+                                if j != pos and avg_attention[j, pos] > 0:
+                                    a_ji = avg_attention[j, pos].item()
+                                    answer_score += -a_ji * np.log(a_ji + 1e-10)
+                        
+                        # Normalize by number of tokens in answer
+                        answer_score /= len(positions)
+                
+                elif score == "euclidean":
+                    # Calculate Euclidean distance-based clustering score
+                    # Average embedding for multi-token answers
+                    if len(positions) > 1:
+                        answer_embedding = embeddings[positions].mean(dim=0, keepdim=True)
+                    else:
+                        answer_embedding = embeddings[positions[0]].unsqueeze(0)
+                    
+                    # Calculate distance to all other answer embeddings
+                    for other_answer in answers:
+                        if other_answer != answer and other_answer in answer_positions:
+                            other_positions = answer_positions[other_answer]
+                            if len(other_positions) > 1:
+                                other_embedding = embeddings[other_positions].mean(dim=0, keepdim=True)
+                            else:
+                                other_embedding = embeddings[other_positions[0]].unsqueeze(0)
+                            
+                            dist = torch.norm(answer_embedding - other_embedding, p=2).item()
+                            answer_score += dist
+                
+                else:
+                    raise ValueError(f"Unknown scoring method: {score}")
+                
+                layer_scores[answer] = answer_score
+            
+            # Append scores for this layer to results
+            for answer in answers:
+                results[answer].append(layer_scores.get(answer, 0.0))
+    
+    # Print results as a simple dictionary
+    print(results)
+    
+    return results
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
   
