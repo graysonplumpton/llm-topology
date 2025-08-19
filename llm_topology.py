@@ -1422,7 +1422,101 @@ class LLMTopology:
         else:
             print(f'    "{answer}": {scores}')
     print("}")
+
+
+  def print_pca_data(self, tokens, layer=-1):
+    """
+    Extract PCA data and print for copy-pasting (no file saving)
     
+    Args:
+        tokens: List of tokens/words to analyze
+        layer: Which layer to extract embeddings from (-1 = last layer)
+    """
+    
+    # Ensure model outputs hidden states
+    original_output_hidden_states = getattr(self.model.config, 'output_hidden_states', False)
+    self.model.config.output_hidden_states = True
+    
+    # Get embeddings for each token
+    embeddings = []
+    valid_tokens = []
+    
+    with torch.no_grad():
+        for token in tokens:
+            # Tokenize 
+            inputs = self.tokenizer(token, return_tensors="pt", padding=True)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            # Get model outputs
+            outputs = self.model(**inputs)
+            hidden_states = outputs.hidden_states
+            
+            # Extract embedding from specified layer
+            token_embedding = hidden_states[layer][0].mean(dim=0)
+            
+            embeddings.append(token_embedding.cpu().numpy())
+            valid_tokens.append(token)
+    
+    # Restore original config
+    self.model.config.output_hidden_states = original_output_hidden_states
+    
+    # Convert to numpy array
+    embeddings_matrix = np.array(embeddings)
+    
+    # Perform PCA
+    pca = PCA(n_components=2)
+    embeddings_2d = pca.fit_transform(embeddings_matrix)
+    
+    # Prepare data dictionary
+    pca_data = {
+        'tokens': valid_tokens,
+        'embeddings_2d': embeddings_2d.tolist(),
+        'explained_variance_ratio': pca.explained_variance_ratio_.tolist(),
+        'layer': layer,
+        'total_explained_variance': float(pca.explained_variance_ratio_.sum())
+    }
+    
+    # Print summary first
+    print(f"\n=== PCA Analysis Summary ===")
+    print(f"Tokens: {valid_tokens}")
+    print(f"Layer: {layer}")
+    print(f"Explained variance: PC1={pca_data['explained_variance_ratio'][0]:.3f}, PC2={pca_data['explained_variance_ratio'][1]:.3f}")
+    print(f"Total explained variance: {pca_data['total_explained_variance']:.3f}")
+    
+    # Print the data for copy-pasting
+    print(f"\n{'='*60}")
+    print("COPY THE DATA BELOW (including the curly braces):")
+    print(f"{'='*60}")
+    print(json.dumps(pca_data, indent=2))
+    print(f"{'='*60}")
+    
+    return pca_data
+
+  def print_multi_layer_pca_data(self, tokens, layers=None):
+    """Extract and print PCA data for multiple layers"""
+    if layers is None:
+        num_layers = self.model.config.num_hidden_layers
+        layers = [0, num_layers // 3, 2 * num_layers // 3, -1]
+    
+    multi_layer_data = {}
+    
+    print(f"\n=== Multi-Layer PCA Analysis ===")
+    print(f"Analyzing layers: {layers}")
+    
+    for layer in layers:
+        print(f"\nProcessing layer {layer}...")
+        layer_data = self.print_pca_data(tokens, layer=layer)
+        multi_layer_data[f'layer_{layer}'] = layer_data
+    
+    # Print combined data
+    print(f"\n{'='*60}")
+    print("COPY THE MULTI-LAYER DATA BELOW:")
+    print(f"{'='*60}")
+    print(json.dumps(multi_layer_data, indent=2))
+    print(f"{'='*60}")
+    
+    return multi_layer_data
+
   
 
 
