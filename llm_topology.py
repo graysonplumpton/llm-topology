@@ -1592,7 +1592,7 @@ class LLMTopology:
     
     return pca_data
 
-def compare_distance_metrics_pca(self, prompt, layer=-1):
+  def compare_distance_metrics_pca(self, prompt, layer=-1):
     """
     Compare PCA results using both Euclidean and Cosine distance metrics
     """
