@@ -1500,7 +1500,7 @@ class LLMTopology:
     
     return pca_data
 
-  def print_contextualized_pca_data(self, prompt, layer=-1, distance_metric='euclidean'):
+  def print_contextualized_pca_data(self, prompt, layer=-1, distance_metric='cosine'):
     """
     Perform PCA analysis on contextualized token embeddings from a prompt
     
@@ -1620,7 +1620,7 @@ class LLMTopology:
     
     return comparison_data
 
-  def analyze_multiple_prompts_pca(self, prompts, layer=-1, distance_metric='euclidean'):
+  def analyze_multiple_prompts_pca(self, prompts, layer=-1, distance_metric='cosine'):
     """
     Analyze multiple prompts to see how context affects the same words
     
