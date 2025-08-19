@@ -1467,12 +1467,12 @@ class LLMTopology:
     pca = PCA(n_components=2)
     embeddings_2d = pca.fit_transform(embeddings_matrix)
     
-    # Prepare data dictionary
+    # Prepare data dictionary (fix JSON serialization)
     pca_data = {
-        'tokens': valid_tokens,
-        'embeddings_2d': embeddings_2d.tolist(),
-        'explained_variance_ratio': pca.explained_variance_ratio_.tolist(),
-        'layer': layer,
+        'tokens': [str(token) for token in valid_tokens],  # Ensure strings
+        'embeddings_2d': [[float(x) for x in row] for row in embeddings_2d],  # Ensure floats
+        'explained_variance_ratio': [float(x) for x in pca.explained_variance_ratio_],  # Ensure floats
+        'layer': int(layer),  # Ensure int
         'total_explained_variance': float(pca.explained_variance_ratio_.sum())
     }
     
@@ -1484,38 +1484,19 @@ class LLMTopology:
     print(f"Total explained variance: {pca_data['total_explained_variance']:.3f}")
     
     # Print the data for copy-pasting
-    print(f"\n{'='*60}")
-    print("COPY THE DATA BELOW (including the curly braces):")
-    print(f"{'='*60}")
-    print(json.dumps(pca_data, indent=2))
-    print(f"{'='*60}")
+    try:
+        print(f"\n{'='*60}")
+        print("COPY THE DATA BELOW (including the curly braces):")
+        print(f"{'='*60}")
+        print(json.dumps(pca_data, indent=2))
+        print(f"{'='*60}")
+    except Exception as e:
+        print(f"JSON serialization error: {e}")
+        print("Raw data types:")
+        for key, value in pca_data.items():
+            print(f"{key}: {type(value)}")
     
     return pca_data
-
-  def print_multi_layer_pca_data(self, tokens, layers=None):
-    """Extract and print PCA data for multiple layers"""
-    if layers is None:
-        num_layers = self.model.config.num_hidden_layers
-        layers = [0, num_layers // 3, 2 * num_layers // 3, -1]
-    
-    multi_layer_data = {}
-    
-    print(f"\n=== Multi-Layer PCA Analysis ===")
-    print(f"Analyzing layers: {layers}")
-    
-    for layer in layers:
-        print(f"\nProcessing layer {layer}...")
-        layer_data = self.print_pca_data(tokens, layer=layer)
-        multi_layer_data[f'layer_{layer}'] = layer_data
-    
-    # Print combined data
-    print(f"\n{'='*60}")
-    print("COPY THE MULTI-LAYER DATA BELOW:")
-    print(f"{'='*60}")
-    print(json.dumps(multi_layer_data, indent=2))
-    print(f"{'='*60}")
-    
-    return multi_layer_data
 
   
 
