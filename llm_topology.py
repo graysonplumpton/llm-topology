@@ -1681,7 +1681,128 @@ class LLMTopology:
     
     return all_layer_data
   
+  def bert_print_contextualized_pca_data(self, prompt, layer=-1, distance_metric='cosine'):
+    """
+    Perform PCA analysis on contextualized token embeddings from a prompt
+    
+    Args:
+        prompt: String prompt to analyze (e.g., "The bank by the river is peaceful")
+        layer: Which layer to extract embeddings from (-1 = last layer)
+        distance_metric: 'euclidean' or 'cosine' - distance metric for PCA preprocessing
+    """
+    
+    # Ensure model outputs hidden states
+    original_output_hidden_states = getattr(self.model.config, 'output_hidden_states', False)
+    self.model.config.output_hidden_states = True
+    
+    # Tokenize the entire prompt
+    inputs = self.tokenizer(prompt, return_tensors="pt")
+    inputs = {k: v.to(self.device) for k, v in inputs.items()}
+    
+    # Get model outputs
+    with torch.no_grad():
+        outputs = self.model(**inputs)
+        hidden_states = outputs.hidden_states
+    
+    # Restore original config
+    self.model.config.output_hidden_states = original_output_hidden_states
+    
+    # Extract embeddings from specified layer
+    # Shape: [batch_size, sequence_length, hidden_size]
+    layer_embeddings = hidden_states[layer][0]  # Remove batch dimension
+    
+    # Get token strings (decode each token)
+    input_ids = inputs['input_ids'][0]  # Remove batch dimension
+    tokens = [self.tokenizer.decode([token_id]) for token_id in input_ids]
+    
+    # Convert to numpy
+    embeddings_matrix = layer_embeddings.cpu().numpy()
+    
+    # Apply distance metric transformation if cosine
+    if distance_metric.lower() == 'cosine':
+        # For cosine distance, we need to transform the data
+        # Cosine distance focuses on direction, not magnitude
+        # We'll normalize the vectors (unit vectors)
+        from sklearn.preprocessing import normalize
+        embeddings_matrix = normalize(embeddings_matrix, norm='l2')
+        distance_name = "Cosine Distance (normalized)"
+    elif distance_metric.lower() == 'euclidean':
+        # No transformation needed for Euclidean
+        distance_name = "Euclidean Distance"
+    else:
+        raise ValueError("distance_metric must be 'euclidean' or 'cosine'")
+    
+    # Perform PCA
+    pca = PCA(n_components=2)
+    embeddings_2d = pca.fit_transform(embeddings_matrix)
+    
+    # Prepare data dictionary
+    pca_data = {
+        'prompt': prompt,
+        'tokens': [str(token).strip() for token in tokens],  # Clean up token strings
+        'embeddings_2d': [[float(x) for x in row] for row in embeddings_2d],
+        'explained_variance_ratio': [float(x) for x in pca.explained_variance_ratio_],
+        'layer': int(layer),
+        'distance_metric': distance_metric,
+        'total_explained_variance': float(pca.explained_variance_ratio_.sum()),
+        'sequence_length': len(tokens)
+    }
+    
+    # Print summary first
+    print(f"\n=== Contextualized PCA Analysis Summary ===")
+    print(f"Prompt: '{prompt}'")
+    print(f"Tokens: {pca_data['tokens']}")
+    print(f"Layer: {layer}")
+    print(f"Distance metric: {distance_name}")
+    print(f"Sequence length: {len(tokens)}")
+    print(f"Explained variance: PC1={pca_data['explained_variance_ratio'][0]:.3f}, PC2={pca_data['explained_variance_ratio'][1]:.3f}")
+    print(f"Total explained variance: {pca_data['total_explained_variance']:.3f}")
+    
+    # Print the data for copy-pasting
+    try:
+        print(f"\n{'='*60}")
+        print("COPY THE DATA BELOW (including the curly braces):")
+        print(f"{'='*60}")
+        print(json.dumps(pca_data, indent=2))
+        print(f"{'='*60}")
+    except Exception as e:
+        print(f"JSON serialization error: {e}")
+        print("Raw data types:")
+        for key, value in pca_data.items():
+            print(f"{key}: {type(value)}")
+    
+    return pca_data
 
+
+  def bert_print_multi_layer_contextualized_pca(self, prompt, layers=None, distance_metric='cosine'):
+    """
+    Print PCA data for multiple layers in one go
+    """
+    if layers is None:
+        # Default to a good spread of layers
+        num_layers = self.model.config.num_hidden_layers
+        layers = [0, num_layers // 4, num_layers // 2, 3 * num_layers // 4, -1]
+    
+    all_layer_data = {}
+    
+    print(f"\n=== Multi-Layer Contextualized PCA Analysis ===")
+    print(f"Prompt: '{prompt}'")
+    print(f"Distance metric: {distance_metric}")
+    print(f"Analyzing layers: {layers}")
+    
+    for layer in layers:
+        print(f"\n--- Processing Layer {layer} ---")
+        layer_data = self.bert_print_contextualized_pca_data(prompt, layer, distance_metric)
+        all_layer_data[f'layer_{layer}'] = layer_data
+    
+    # Print all data in one big JSON block
+    print(f"\n{'='*80}")
+    print("COPY ALL MULTI-LAYER DATA BELOW:")
+    print(f"{'='*80}")
+    print(json.dumps(all_layer_data, indent=2))
+    print(f"{'='*80}")
+    
+    return all_layer_data
 
     
 
