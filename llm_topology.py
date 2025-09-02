@@ -2080,6 +2080,36 @@ class LLMTopology:
     
     return pca_data
 
+  def print_combined_multi_layer_contextualized_pca(self, prompts, layers=None, distance_metric='cosine'):
+    """
+    Print combined PCA data for multiple layers - all prompts overlaid in same PCA space per layer
+    """
+    if layers is None:
+        # Default to a good spread of layers
+        num_layers = self.model.config.num_hidden_layers
+        layers = [0, num_layers // 4, num_layers // 2, 3 * num_layers // 4, -1]
+    
+    all_layer_data = {}
+    
+    print(f"\n=== Combined Multi-Layer Contextualized PCA Analysis ===")
+    print(f"Prompts: {prompts}")
+    print(f"Distance metric: {distance_metric}")
+    print(f"Analyzing layers: {layers}")
+    
+    for layer in layers:
+        print(f"\n--- Processing Layer {layer} ---")
+        layer_data = self.print_combined_contextualized_pca_data(prompts, layer, distance_metric)
+        all_layer_data[f'layer_{layer}'] = layer_data
+    
+    # Print all data in one big JSON block
+    print(f"\n{'='*80}")
+    print("COPY ALL COMBINED MULTI-LAYER DATA BELOW:")
+    print(f"{'='*80}")
+    print(json.dumps(all_layer_data, indent=2))
+    print(f"{'='*80}")
+    
+    return all_layer_data
+
 
 
     
