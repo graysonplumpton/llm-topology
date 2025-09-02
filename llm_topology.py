@@ -1855,6 +1855,191 @@ class LLMTopology:
     
     return all_data
 
+  def print_combined_multi_prompt_contextualized_pca(self, prompts, layers=None, distance_metric='cosine'):
+    """
+    Perform PCA on combined contextualized token embeddings from multiple prompts.
+    This allows comparing how the same tokens behave in different contexts.
+    
+    Args:
+        prompts: List of string prompts to analyze together
+        layers: List of layer indices to analyze (None for default spread)  
+        distance_metric: 'euclidean' or 'cosine' - distance metric for PCA preprocessing
+    """
+    # Ensure prompts is a list
+    if isinstance(prompts, str):
+        prompts = [prompts]
+    
+    if layers is None:
+        # Default to a good spread of layers
+        num_layers = self.model.config.num_hidden_layers
+        layers = [0, num_layers // 4, num_layers // 2, 3 * num_layers // 4, -1]
+    
+    # Ensure model outputs hidden states
+    original_output_hidden_states = getattr(self.model.config, 'output_hidden_states', False)
+    self.model.config.output_hidden_states = True
+    
+    all_layer_data = {}
+    
+    print(f"\n=== Combined Multi-Prompt Contextualized PCA Analysis ===")
+    print(f"Number of prompts: {len(prompts)}")
+    print(f"Prompts: {prompts}")
+    print(f"Distance metric: {distance_metric}")
+    print(f"Analyzing layers: {layers}")
+    
+    for layer in layers:
+        print(f"\n--- Processing Layer {layer} ---")
+        
+        # Collect all embeddings and tokens for this layer across all prompts
+        all_embeddings = []
+        all_tokens = []
+        all_prompt_indices = []
+        all_token_indices = []
+        
+        for prompt_idx, prompt in enumerate(prompts):
+            # Tokenize prompt
+            inputs = self.tokenizer(prompt, return_tensors="pt", padding=True)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            
+            # Get model outputs
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                hidden_states = outputs.hidden_states
+            
+            # Extract embeddings from specified layer
+            layer_embeddings = hidden_states[layer][0]  # Remove batch dimension
+            
+            # Get token strings
+            input_ids = inputs['input_ids'][0]  # Remove batch dimension
+            tokens = [self.tokenizer.decode([token_id]) for token_id in input_ids]
+            
+            # Convert to numpy and add to collections
+            embeddings_matrix = layer_embeddings.cpu().numpy()
+            
+            all_embeddings.append(embeddings_matrix)
+            all_tokens.extend([f"P{prompt_idx}:{str(token).strip()}" for token in tokens])
+            all_prompt_indices.extend([prompt_idx] * len(tokens))
+            all_token_indices.extend(list(range(len(tokens))))
+        
+        # Combine all embeddings
+        combined_embeddings = np.vstack(all_embeddings)
+        
+        # Apply distance metric transformation if cosine
+        if distance_metric.lower() == 'cosine':
+            from sklearn.preprocessing import normalize
+            combined_embeddings = normalize(combined_embeddings, norm='l2')
+            distance_name = "Cosine Distance (normalized)"
+        elif distance_metric.lower() == 'euclidean':
+            distance_name = "Euclidean Distance"
+        else:
+            raise ValueError("distance_metric must be 'euclidean' or 'cosine'")
+        
+        # Perform PCA on combined data
+        pca = PCA(n_components=2)
+        embeddings_2d = pca.fit_transform(combined_embeddings)
+        
+        # Prepare data dictionary
+        layer_data = {
+            'prompts': prompts,
+            'tokens': all_tokens,
+            'prompt_indices': all_prompt_indices,
+            'token_indices': all_token_indices,
+            'embeddings_2d': [[float(x) for x in row] for row in embeddings_2d],
+            'explained_variance_ratio': [float(x) for x in pca.explained_variance_ratio_],
+            'layer': int(layer),
+            'distance_metric': distance_metric,
+            'total_explained_variance': float(pca.explained_variance_ratio_.sum()),
+            'total_tokens': len(all_tokens),
+            'num_prompts': len(prompts)
+        }
+        
+        all_layer_data[f'layer_{layer}'] = layer_data
+        
+        # Print summary for this layer
+        print(f"Layer {layer} Summary:")
+        print(f"  Combined tokens: {len(all_tokens)}")
+        print(f"  Distance metric: {distance_name}")
+        print(f"  Explained variance: PC1={layer_data['explained_variance_ratio'][0]:.3f}, PC2={layer_data['explained_variance_ratio'][1]:.3f}")
+        print(f"  Total explained variance: {layer_data['total_explained_variance']:.3f}")
+    
+    # Restore original config
+    self.model.config.output_hidden_states = original_output_hidden_states
+    
+    # Print all data in one big JSON block
+    print(f"\n{'='*80}")
+    print("COPY ALL COMBINED MULTI-PROMPT DATA BELOW:")
+    print(f"{'='*80}")
+    print(json.dumps(all_layer_data, indent=2))
+    print(f"{'='*80}")
+    
+    return all_layer_data
+
+
+def visualize_combined_multi_prompt_contextualized(combined_data, figsize=(16, 12)):
+    """
+    Visualize combined multi-prompt data where all prompts are overlaid in the same PCA space
+    """
+    layers = list(combined_data.keys())
+    n_layers = len(layers)
+    
+    # Create subplot grid
+    rows = (n_layers + 1) // 2
+    cols = 2
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+    axes = axes.flatten() if n_layers > 1 else [axes]
+    
+    # Color map for different prompts
+    colors = plt.cm.Set1(np.linspace(0, 1, 10))  # Support up to 10 prompts
+    
+    for idx, layer_key in enumerate(layers):
+        if idx >= len(axes):
+            break
+        
+        layer_data = combined_data[layer_key]
+        tokens = layer_data['tokens']
+        embeddings_2d = np.array(layer_data['embeddings_2d'])
+        explained_variance = layer_data['explained_variance_ratio']
+        layer = layer_data['layer']
+        prompt_indices = layer_data['prompt_indices']
+        prompts = layer_data['prompts']
+        
+        ax = axes[idx]
+        
+        # Plot each prompt's tokens in different colors
+        for prompt_idx in range(len(prompts)):
+            # Get tokens belonging to this prompt
+            mask = np.array(prompt_indices) == prompt_idx
+            prompt_embeddings = embeddings_2d[mask]
+            prompt_tokens = [tokens[i] for i in range(len(tokens)) if prompt_indices[i] == prompt_idx]
+            
+            # Plot scatter
+            scatter = ax.scatter(prompt_embeddings[:, 0], prompt_embeddings[:, 1],
+                               c=[colors[prompt_idx]], s=80, alpha=0.7, 
+                               label=f'P{prompt_idx}: "{prompts[prompt_idx][:20]}..."')
+            
+            # Annotate tokens
+            for i, token in enumerate(prompt_tokens):
+                ax.annotate(token, (prompt_embeddings[i, 0], prompt_embeddings[i, 1]),
+                           xytext=(3, 3), textcoords='offset points', fontsize=6)
+        
+        ax.set_xlabel(f'PC1 ({explained_variance[0]:.3f})')
+        ax.set_ylabel(f'PC2 ({explained_variance[1]:.3f})')
+        ax.set_title(f'Layer {layer} - Combined Context')
+        ax.grid(True, alpha=0.3)
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # Hide unused subplots
+    for idx in range(len(layers), len(axes)):
+        axes[idx].set_visible(False)
+    
+    plt.suptitle(f'Combined Multi-Prompt PCA Analysis\n{len(combined_data[layers[0]]["prompts"])} prompts overlaid')
+    plt.tight_layout()
+    
+    downloads_path = os.path.expanduser("~/Downloads/combined-multi-prompt-Llama-3.1-70B.pdf")
+    plt.savefig(downloads_path, bbox_inches='tight', format='pdf', dpi=300)
+    print(f"Chart saved as PDF to: {downloads_path}")
+    
+    return fig
+
     
 
 
