@@ -1833,10 +1833,7 @@ class LLMTopology:
     
     for prompt_idx, prompt in enumerate(prompts):
         prompt_key = f'prompt_{prompt_idx}'
-        all_data[prompt_key] = {
-            'prompt_text': prompt,
-            'layers': {}
-        }
+        prompt_layers = {}
         
         print(f"\n{'='*60}")
         print(f"PROCESSING PROMPT {prompt_idx + 1}/{len(prompts)}: '{prompt}'")
@@ -1845,7 +1842,9 @@ class LLMTopology:
         for layer in layers:
             print(f"\n--- Processing Layer {layer} ---")
             layer_data = self.print_contextualized_pca_data(prompt, layer, distance_metric)
-            all_data[prompt_key]['layers'][f'layer_{layer}'] = layer_data
+            prompt_layers[f'layer_{layer}'] = layer_data
+        
+        all_data[prompt_key] = prompt_layers
     
     # Print all data in one big JSON block
     print(f"\n{'='*80}")
