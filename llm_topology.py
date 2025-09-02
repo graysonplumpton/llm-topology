@@ -1804,6 +1804,58 @@ class LLMTopology:
     
     return all_layer_data
 
+
+  def print_multi_prompt_multi_layer_contextualized_pca(self, prompts, layers=None, distance_metric='cosine'):
+    """
+    Print PCA data for multiple prompts across multiple layers
+    
+    Args:
+        prompts: List of string prompts to analyze (e.g., ["The bank by the river", "I went to the bank"])
+        layers: List of layer indices to analyze (None for default spread)
+        distance_metric: 'euclidean' or 'cosine' - distance metric for PCA preprocessing
+    """
+    # Ensure prompts is a list
+    if isinstance(prompts, str):
+        prompts = [prompts]
+    
+    if layers is None:
+        # Default to a good spread of layers
+        num_layers = self.model.config.num_hidden_layers
+        layers = [0, num_layers // 4, num_layers // 2, 3 * num_layers // 4, -1]
+    
+    all_data = {}
+    
+    print(f"\n=== Multi-Prompt Multi-Layer Contextualized PCA Analysis ===")
+    print(f"Number of prompts: {len(prompts)}")
+    print(f"Prompts: {prompts}")
+    print(f"Distance metric: {distance_metric}")
+    print(f"Analyzing layers: {layers}")
+    
+    for prompt_idx, prompt in enumerate(prompts):
+        prompt_key = f'prompt_{prompt_idx}'
+        all_data[prompt_key] = {
+            'prompt_text': prompt,
+            'layers': {}
+        }
+        
+        print(f"\n{'='*60}")
+        print(f"PROCESSING PROMPT {prompt_idx + 1}/{len(prompts)}: '{prompt}'")
+        print(f"{'='*60}")
+        
+        for layer in layers:
+            print(f"\n--- Processing Layer {layer} ---")
+            layer_data = self.print_contextualized_pca_data(prompt, layer, distance_metric)
+            all_data[prompt_key]['layers'][f'layer_{layer}'] = layer_data
+    
+    # Print all data in one big JSON block
+    print(f"\n{'='*80}")
+    print("COPY ALL MULTI-PROMPT MULTI-LAYER DATA BELOW:")
+    print(f"{'='*80}")
+    print(json.dumps(all_data, indent=2))
+    print(f"{'='*80}")
+    
+    return all_data
+
     
 
 
