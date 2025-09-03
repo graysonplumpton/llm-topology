@@ -724,6 +724,99 @@ class LLMTopology:
         else:
             print('}')
 
+  def promptcluster(self, prompt, score="cosine"):
+    """
+    Return the token with the highest clustering score among the last 4 tokens.
+    """
+    # Tokenize the prompt
+    inputs = self.tokenizer(prompt, return_tensors="pt", 
+                           padding=True, truncation=True).to(self.device)
+    
+    # Get token strings
+    token_ids = inputs['input_ids'][0]
+    tokens = [self.tokenizer.decode([tid]) for tid in token_ids]
+    
+    # Focus on last 4 tokens only
+    last_4_indices = list(range(max(0, len(tokens) - 4), len(tokens)))
+    
+    with torch.no_grad():
+        # Check if we need attention weights
+        need_attention = (score == "entropy")
+        
+        # Get model outputs
+        outputs = self.model(
+            **inputs, 
+            output_hidden_states=True, 
+            output_attentions=need_attention
+        )
+        
+        # Get embeddings from the last layer
+        hidden_states = outputs.hidden_states[-1]
+        embeddings = hidden_states[0]
+        
+        if score == "cosine":
+            embeddings_norm = F.normalize(embeddings, p=2, dim=1)
+            cosine_sim = torch.mm(embeddings_norm, embeddings_norm.t())
+            
+            epsilon = 1e-10
+            individual_scores = []
+            
+            for i in last_4_indices:
+                token_score = 0.0
+                for j in last_4_indices:
+                    if i != j:
+                        sim_value = cosine_sim[i, j].item()
+                        shifted_sim = (sim_value + 1) / 2 + epsilon
+                        pairwise_score = -np.log(shifted_sim)
+                        token_score += pairwise_score
+                individual_scores.append(token_score)
+            
+        elif score == "entropy":
+            if outputs.attentions is None:
+                return self.promptcluster(prompt, score="cosine")
+            
+            all_attentions = torch.stack(outputs.attentions)
+            avg_attention = all_attentions.mean(dim=(0, 2))[0]
+            
+            individual_scores = []
+            
+            for i in last_4_indices:
+                token_entropy = 0.0
+                
+                # Entropy from this token attending to others in last 4
+                for j in last_4_indices:
+                    if avg_attention[i, j] > 0:
+                        a_ij = avg_attention[i, j].item()
+                        token_entropy += -a_ij * np.log(a_ij + 1e-10)
+                
+                # Entropy from other tokens in last 4 attending to this one
+                for j in last_4_indices:
+                    if i != j and avg_attention[j, i] > 0:
+                        a_ji = avg_attention[j, i].item()
+                        token_entropy += -a_ji * np.log(a_ji + 1e-10)
+                
+                individual_scores.append(token_entropy)
+            
+        elif score == "euclidean":
+            individual_scores = []
+            
+            for i in last_4_indices:
+                token_score = 0.0
+                for j in last_4_indices:  # Only compare within last 4 tokens
+                    if i != j:
+                        dist = torch.norm(embeddings[i] - embeddings[j], p=2).item()
+                        token_score += dist
+                individual_scores.append(token_score)
+            
+        else:
+            raise ValueError(f"Unknown scoring method: {score}")
+    
+    # Find token with highest score among last 4
+    max_score_idx = individual_scores.index(max(individual_scores))
+    highest_scoring_token = tokens[last_4_indices[max_score_idx]]
+    
+    return highest_scoring_token
+
 
   def promptcluster(self, prompt, score="cosine", print_full=False):
     """
