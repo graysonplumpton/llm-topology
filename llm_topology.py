@@ -2210,6 +2210,43 @@ class LLMTopology:
     return highest_scoring_token
 
 
+  def contextual_loops(self, input, layer=-1, metric='cosine'):
+
+    embeddings = []
+    
+    with torch.no_grad():
+        for token in input:
+            inputs = self.tokenizer(token, return_tensors="pt", 
+                                   padding=True, truncation=True).to(self.device)
+            
+            # Get hidden states from specified layer
+            outputs = self.model(**inputs, output_hidden_states=True)
+            hidden_states = outputs.hidden_states[layer]
+            
+            # Get embedding for the target token position (last token)
+            token_embedding = hidden_states[0, -1, :]  # [hidden_dim]
+            embeddings.append(token_embedding)
+    
+    embeddings = torch.stack(embeddings).cpu()
+
+    distance_matrix = self.compute_distance_matrix(embeddings, metric)
+
+    diagrams = ripser(distance_matrix, distance_matrix = True, maxdim = 1)
+
+    h1_features = diagrams['dgms'][1]
+
+    if len(h1_features) == 0:
+      return 0.0
+
+    else:
+      persistence = [death - birth for birth, death in h1_features]
+     
+      return max(persistence)
+
+    
+
+    
+
     
 
 
